@@ -12,8 +12,8 @@ export function mountWisdomSlider({ value = null, onChange }) {
       <div class="dot" style="left: ${current < 0 ? 0 : (current / 4) * 100}%"></div>
     </div>
     <div class="legend">
-      <span>Sage</span>
-      <span>Espiègle</span>
+      <span>Pas Sage</span>
+      <span>Très Sage</span>
     </div>
     <button class="btn btn-ghost" style="min-height:36px;padding:6px 12px;font-size:.85rem;" data-clear>Effacer</button>
   `;
