@@ -1,0 +1,6 @@
+@media print {
+  body { background: #fff; }
+  #app-header, .upload-btns, #btn-menu, #santa-stage, #modal-region, #progress-region, #toast-region { display: none !important; }
+  #view-root { padding: 0; }
+  .card, .toy-card { break-inside: avoid; box-shadow: none; border: 1px solid #ccc; }
+}
