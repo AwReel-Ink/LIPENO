@@ -53,13 +53,13 @@ function ageStr(c){if(!c.birth)return '';const [y,m]=c.birth.split('-').map(Numb
  const mo=(n.getFullYear()-y)*12+(n.getMonth()+1-m);if(mo<0)return '';if(mo<12)return mo+' mois';
  const a=Math.floor(mo/12);return a+' an'+(a>1?'s':'')+(mo%12>=6?' et demi':'')}
 function openChildModal(c){editChild=c;childPhoto=c?.photo||null;childAvatar=c?.avatar||'🧒';
- $('#modal-child-title').textContent=c?'Modifier le profil':'Nouvel enfant';$('#child-name').value=c?.name||'';$('#child-age').value=c?.age||'';
+ $('#modal-child-title').textContent=c?'Modifier le profil':'Nouvel enfant';$('#child-name').value=c?.name||'';$('#child-birth').value=c?.birth||'';
  c?show($('#btn-delete-child')):hide($('#btn-delete-child'));prevAvatar();show($('#modal-child'))}
 function prevAvatar(){$('#child-avatar-preview').innerHTML=childPhoto?`<img src="${blobToURL(childPhoto)}">`:childAvatar}
 $$('.avatar-emojis button').forEach(b=>b.onclick=()=>{childAvatar=b.dataset.av;childPhoto=null;prevAvatar()});
 $('#btn-child-photo').onclick=async()=>{const f=await pickFile($('#file-child'));if(!f[0])return;childPhoto=(await convertMany(f,'Préparation de la photo…'))[0];prevAvatar()};
 $('#btn-save-child').onclick=async()=>{const name=$('#child-name').value.trim();if(!name)return toast('Le prénom est obligatoire');
- const c=editChild||{id:uid(),created:Date.now()};Object.assign(c,{name,age:+$('#child-age').value||null,photo:childPhoto,avatar:childAvatar});
+ const c=editChild||{id:uid(),created:Date.now()};Object.assign(c,{name,birth:$('#child-birth').value||null,photo:childPhoto,avatar:childAvatar});
  urls.delete('c'+c.id);await DB.put('children',c);hide($('#modal-child'));renderChildren();if(cur&&cur.id===c.id){cur=c;headerList()}};
 $('#btn-delete-child').onclick=async()=>{if(!await confirmBox('Supprimer le profil',`Supprimer ${editChild.name} et toute sa liste ?`))return;
  for(const t of await DB.byChild(editChild.id))await DB.del('toys',t.id);await DB.del('children',editChild.id);hide($('#modal-child'));renderChildren()};
