@@ -40,22 +40,26 @@ let children=[],toys=[],cur=null,selMode=false,sel=new Set();
 const urls=new Map();const imgURL=(id,blob)=>{if(!urls.has(id))urls.set(id,blobToURL(blob));return urls.get(id)};
 
 /* ===== Profils ===== */
+const esc=s=>(s||'').replace(/[&<>"]/g,c=>({'&':'&','<':'<','>':'>','"':'"'}[c]));
+let editChild=null,childPhoto=null,childAvatar='🧒';
+
+function ageStr(c){if(!c||!c.birth)return '';const [y,m]=c.birth.split('-').map(Number),n=new Date();
+ const mo=(n.getFullYear()-y)*12+(n.getMonth()+1-m);if(mo<0)return '';if(mo<12)return mo+' mois';
+ const a=Math.floor(mo/12);return a+' an'+(a>1?'s':'')+(mo%12>=6?' et demi':'')}
+
 async function renderChildren(){children=await DB.all('children');const all=await DB.all('toys');const L=$('#children-list');L.innerHTML='';
  children.length?hide($('#children-empty')):show($('#children-empty'));
  for(const c of children){const n=all.filter(t=>t.childId===c.id).length;const d=document.createElement('div');d.className='child-card';
   d.innerHTML=`<div class="child-avatar">${c.photo?`<img src="${imgURL('c'+c.id,c.photo)}">`:c.avatar||'🧒'}</div>
-  <div class="name">${esc(c.name)}</div><div class="age">${c.age?c.age+' an'+(c.age>1?'s':''):''}</div><div class="count">🎁 ${n} jouet${n>1?'s':''}</div>
+  <div class="name">${esc(c.name)}</div><div class="age">${ageStr(c)}</div><div class="count">🎁 ${n} jouet${n>1?'s':''}</div>
   <button class="edit-btn">✏️</button>`;
   d.onclick=()=>openList(c);d.querySelector('.edit-btn').onclick=e=>{e.stopPropagation();openChildModal(c)};L.appendChild(d)}}
-const esc=s=>(s||'').replace(/[&<>"]/g,c=>({'&':'&','<':'<','>':'>','"':'"'}[c]));
-let editChild=null,childPhoto=null,childAvatar='🧒';
-function ageStr(c){if(!c.birth)return '';const [y,m]=c.birth.split('-').map(Number),n=new Date();
- const mo=(n.getFullYear()-y)*12+(n.getMonth()+1-m);if(mo<0)return '';if(mo<12)return mo+' mois';
- const a=Math.floor(mo/12);return a+' an'+(a>1?'s':'')+(mo%12>=6?' et demi':'')}
+
 function openChildModal(c){editChild=c;childPhoto=c?.photo||null;childAvatar=c?.avatar||'🧒';
  $('#modal-child-title').textContent=c?'Modifier le profil':'Nouvel enfant';$('#child-name').value=c?.name||'';$('#child-birth').value=c?.birth||'';
  c?show($('#btn-delete-child')):hide($('#btn-delete-child'));prevAvatar();show($('#modal-child'))}
 function prevAvatar(){$('#child-avatar-preview').innerHTML=childPhoto?`<img src="${blobToURL(childPhoto)}">`:childAvatar}
+
 $$('.avatar-emojis button').forEach(b=>b.onclick=()=>{childAvatar=b.dataset.av;childPhoto=null;prevAvatar()});
 $('#btn-child-photo').onclick=async()=>{const f=await pickFile($('#file-child'));if(!f[0])return;childPhoto=(await convertMany(f,'Préparation de la photo…'))[0];prevAvatar()};
 $('#btn-save-child').onclick=async()=>{const name=$('#child-name').value.trim();if(!name)return toast('Le prénom est obligatoire');
