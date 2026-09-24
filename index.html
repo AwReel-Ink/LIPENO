@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>LIPENO – Liste au Père Noël</title>
+<meta name="description" content="Crée ta liste au Père Noël et partage-la avec la famille.">
+<meta name="theme-color" content="#C41E3A">
+<link rel="manifest" href="manifest.json">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="LIPENO">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ================= ÉCRAN PROFILS ================= -->
+  <section id="screen-profiles" class="screen active">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-icon">🎅</span>
+        <div>
+          <h1>LIPENO</h1>
+          <small>Liste au Père Noël</small>
+        </div>
+      </div>
+      <button id="btn-info" class="icon-btn gold" aria-label="Mode d'emploi">i</button>
+    </header>
+
+    <main class="content">
+      <h2 class="section-title">Qui écrit au Père Noël ?</h2>
+      <div id="children-list" class="children-list"></div>
+      <p id="children-empty" class="empty hidden">
+        Aucun profil pour l'instant.<br>Appuie sur <b>+</b> pour ajouter un enfant 🎄
+      </p>
+    </main>
+
+    <button id="btn-add-child" class="fab" aria-label="Ajouter un enfant">+</button>
+  </section>
+
+  <!-- ================= ÉCRAN LISTE ================= -->
+  <section id="screen-list" class="screen">
+    <header class="topbar">
+      <button id="btn-back" class="icon-btn" aria-label="Retour">‹</button>
+      <div class="child-title">
+        <span id="list-avatar" class="mini-avatar"></span>
+        <div>
+          <h1 id="list-child-name">Prénom</h1>
+          <small id="list-child-age"></small>
+        </div>
+      </div>
+      <button id="btn-clear-list" class="icon-btn" aria-label="Vider la liste" title="Vider la liste">🗑</button>
+    </header>
+
+    <!-- Barre sélection haut -->
+    <div id="selbar-top" class="selbar hidden">
+      <button class="btn-cancel-sel btn outline">Annuler</button>
+      <span class="sel-count"><span id="sel-count-top">0</span> sélectionné(s)</span>
+      <button class="btn-validate-sel btn green">Valider</button>
+    </div>
+
+    <main class="content list-content">
+      <div class="list-top">
+        <button id="btn-send-letter" class="btn blue big">
+          ✉️ Envoyer la lettre au Père Noël
+        </button>
+        <p id="sent-date" class="sent-date hidden"></p>
+
+        <div class="share-row">
+          <button id="btn-share-jpg" class="btn red">📤 Partager la liste</button>
+          <button id="btn-share-pdf" class="btn outline small">PDF (secours)</button>
+        </div>
+
+        <div class="sagesse">
+          <div class="sagesse-head">
+            <span>😈 Pas sage</span>
+            <span id="sagesse-emoji" class="sagesse-emoji">🙂</span>
+            <span>Très sage 🌟</span>
+          </div>
+          <input type="range" id="sagesse-range" min="0" max="100" value="50">
+          <p id="sagesse-label" class="sagesse-label">Plutôt sage</p>
+        </div>
+      </div>
+
+      <div id="toys-grid" class="toys-grid"></div>
+      <p id="toys-empty" class="empty hidden">
+        La liste est vide 🎁<br>Appuie sur <b>+</b> pour ajouter un jouet<br>ou <b>+++</b> pour en ajouter plusieurs.
+      </p>
+      <div class="bottom-space"></div>
+    </main>
+
+    <!-- Barre sélection bas -->
+    <div id="selbar-bottom" class="selbar bottom hidden">
+      <button class="btn-cancel-sel btn outline">Annuler</button>
+      <button class="btn-validate-sel btn green">Valider</button>
+    </div>
+
+    <div class="fab-group">
+      <button id="btn-add-multi" class="fab small" aria-label="Ajouter plusieurs photos">+++</button>
+      <button id="btn-add-toy" class="fab" aria-label="Ajouter un jouet">+</button>
+    </div>
+  </section>
+</div>
+
+<!-- ================= INPUTS FICHIERS (cachés) ================= -->
+<input type="file" id="file-camera" accept="image/*,.heic,.heif" capture="environment" hidden>
+<input type="file" id="file-gallery" accept="image/*,.heic,.heif" hidden>
+<input type="file" id="file-multi" accept="image/*,.heic,.heif" multiple hidden>
+<input type="file" id="file-child" accept="image/*,.heic,.heif" hidden>
+<input type="file" id="file-toy-edit" accept="image/*,.heic,.heif" hidden>
+
+<!-- ================= MODALES ================= -->
+
+<!-- Choix source photo -->
+<div id="modal-source" class="modal hidden">
+  <div class="sheet">
+    <h3>Ajouter une photo</h3>
+    <button id="src-camera" class="btn red big">📷 Appareil photo</button>
+    <button id="src-gallery" class="btn outline big">🖼 Galerie</button>
+    <button class="btn text modal-close">Annuler</button>
+  </div>
+</div>
+
+<!-- Enfant : création / modification -->
+<div id="modal-child" class="modal hidden">
+  <div class="dialog">
+    <h3 id="modal-child-title">Nouvel enfant</h3>
+    <div class="avatar-picker">
+      <div id="child-avatar-preview" class="avatar-preview">🧒</div>
+      <div class="avatar-actions">
+        <button id="btn-child-photo" class="btn outline small">📷 Photo</button>
+        <div class="avatar-emojis">
+          <button data-av="🧒">🧒</button><button data-av="👧">👧</button>
+          <button data-av="👦">👦</button><button data-av="👶">👶</button>
+          <button data-av="🧝">🧝</button><button data-av="🦌">🦌</button>
+          <button data-av="⛄">⛄</button><button data-av="🎄">🎄</button>
+        </div>
+      </div>
+    </div>
+    <label>Prénom *<input type="text" id="child-name" maxlength="30" placeholder="Prénom de l'enfant"></label>
+    <label>Âge (facultatif)<input type="number" id="child-age" min="0" max="120" placeholder="Ex : 6"></label>
+    <div class="dialog-actions">
+      <button id="btn-delete-child" class="btn text danger hidden">Supprimer</button>
+      <span class="spacer"></span>
+      <button class="btn text modal-close">Annuler</button>
+      <button id="btn-save-child" class="btn red">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Jouet : création / modification -->
+<div id="modal-toy" class="modal hidden">
+  <div class="dialog">
+    <h3 id="modal-toy-title">Nouveau jouet</h3>
+    <div id="toy-photo-preview" class="toy-preview" title="Appuie pour changer la photo">
+      <img id="toy-preview-img" alt="">
+      <span class="change-hint">📷 Changer la photo</span>
+    </div>
+    <label>Nom du jouet (facultatif)<input type="text" id="toy-name" maxlength="60" placeholder="Ex : Lego pompiers"></label>
+    <label>Magasin (facultatif)<input type="text" id="toy-store" maxlength="60" placeholder="Ex : Amazon, King Jouet…"></label>
+    <div class="dialog-actions">
+      <button id="btn-delete-toy" class="btn text danger hidden">Supprimer</button>
+      <span class="spacer"></span>
+      <button class="btn text modal-close">Annuler</button>
+      <button id="btn-save-toy" class="btn red">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Import multiple -->
+<div id="modal-multi" class="modal hidden">
+  <div class="dialog">
+    <h3>Photo <span id="multi-index">1</span> / <span id="multi-total">1</span></h3>
+    <div class="toy-preview static"><img id="multi-preview-img" alt=""></div>
+    <label>Nom du jouet (facultatif)<input type="text" id="multi-name" maxlength="60" placeholder="Nom du jouet"></label>
+    <label>Magasin (facultatif, pré-rempli pour les suivantes)<input type="text" id="multi-store" maxlength="60" placeholder="Magasin"></label>
+    <div class="dialog-actions">
+      <button id="btn-multi-stop" class="btn text danger">Arrêter</button>
+      <span class="spacer"></span>
+      <button id="btn-multi-next" class="btn red">Suivant ›</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirmation -->
+<div id="modal-confirm" class="modal hidden">
+  <div class="dialog small">
+    <h3 id="confirm-title">Confirmer</h3>
+    <p id="confirm-text"></p>
+    <div class="dialog-actions">
+      <span class="spacer"></span>
+      <button id="confirm-no" class="btn text">Annuler</button>
+      <button id="confirm-yes" class="btn red">Confirmer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Info / mode d'emploi -->
+<div id="modal-info" class="modal hidden">
+  <div class="dialog scroll">
+    <h3>🎄 Mode d'emploi</h3>
+    <ol class="help">
+      <li><b>Créer un profil</b> avec <b>+</b> : prénom, âge et photo/avatar (facultatifs). Le <b>crayon ✏️</b> permet de modifier ou supprimer un profil.</li>
+      <li>Dans la liste, <b>+</b> ajoute une photo de jouet (appareil photo ou galerie), puis tu peux indiquer le nom du jouet et le magasin.</li>
+      <li><b>+++</b> ajoute une <b>série de photos</b> : le magasin saisi est pré-rempli pour les photos suivantes, il suffit d'indiquer le nom de chaque jouet.</li>
+      <li><b>Un appui court</b> sur un jouet ouvre la modification / suppression.</li>
+      <li><b>Un appui long de 3 secondes</b> sur une photo active le <b>mode sélection</b> 🔒 : les parents cochent uniquement les jouets à partager, puis <b>Valider</b> exporte la sélection en image. Les petits n'y voient que du feu !</li>
+      <li><b>« Envoyer la lettre au Père Noël »</b> lance l'animation et enregistre la date d'envoi. La liste reste modifiable.</li>
+      <li><b>Partager la liste</b> exporte tout en image (format A4) via WhatsApp, SMS… <b>PDF</b> est une solution de secours.</li>
+      <li>Le <b>curseur de sagesse</b> est là pour demander à l'enfant où il pense se situer 😇.</li>
+      <li>🗑 vide la liste (après Noël par exemple), avec confirmation.</li>
+    </ol>
+    <p class="help-foot">Toutes les données restent sur ton téléphone. Fonctionne hors ligne.</p>
+    <div class="dialog-actions">
+      <span class="spacer"></span>
+      <button class="btn red modal-close">Compris !</button>
+    </div>
+  </div>
+</div>
+
+<!-- Barre de chargement -->
+<div id="loader" class="modal hidden">
+  <div class="loader-box">
+    <div class="loader-icon">🎁</div>
+    <p id="loader-text">Préparation des photos…</p>
+    <div class="progress"><div id="progress-bar" class="progress-bar"></div></div>
+    <small id="loader-sub"></small>
+  </div>
+</div>
+
+<!-- Animation lettre -->
+<div id="letter-anim" class="letter-anim hidden">
+  <div class="snow"></div>
+  <div class="northpole">
+    <div class="np-sign">Pôle Nord 🧭</div>
+    <div class="np-house">🏠</div>
+  </div>
+  <div class="letter-wrap">
+    <div class="letter">
+      <div class="letter-paper">
+        <div class="l1">Cher Père Noël,</div>
+        <div class="l2"></div><div class="l2"></div><div class="l2"></div>
+        <div class="l3" id="letter-sign">🎁</div>
+      </div>
+      <div class="envelope">
+        <div class="env-flap"></div>
+        <div class="env-body">✉️</div>
+      </div>
+    </div>
+  </div>
+  <div class="letter-msg">
+    <div class="msg-icon">🎅</div>
+    <h2>Le Père Noël a reçu ta lettre !</h2>
+    <p>Ho ho ho ! 🎄</p>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
