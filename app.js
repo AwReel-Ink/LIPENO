@@ -49,6 +49,9 @@ async function renderChildren(){children=await DB.all('children');const all=awai
   d.onclick=()=>openList(c);d.querySelector('.edit-btn').onclick=e=>{e.stopPropagation();openChildModal(c)};L.appendChild(d)}}
 const esc=s=>(s||'').replace(/[&<>"]/g,c=>({'&':'&','<':'<','>':'>','"':'"'}[c]));
 let editChild=null,childPhoto=null,childAvatar='🧒';
+function ageStr(c){if(!c.birth)return '';const [y,m]=c.birth.split('-').map(Number),n=new Date();
+ const mo=(n.getFullYear()-y)*12+(n.getMonth()+1-m);if(mo<0)return '';if(mo<12)return mo+' mois';
+ const a=Math.floor(mo/12);return a+' an'+(a>1?'s':'')+(mo%12>=6?' et demi':'')}
 function openChildModal(c){editChild=c;childPhoto=c?.photo||null;childAvatar=c?.avatar||'🧒';
  $('#modal-child-title').textContent=c?'Modifier le profil':'Nouvel enfant';$('#child-name').value=c?.name||'';$('#child-age').value=c?.age||'';
  c?show($('#btn-delete-child')):hide($('#btn-delete-child'));prevAvatar();show($('#modal-child'))}
