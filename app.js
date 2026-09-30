@@ -1,169 +1,189 @@
-/* ===== IndexedDB ===== */
-const DB=(()=>{let db;const open=()=>new Promise((r,j)=>{const q=indexedDB.open('lipeno',1);
- q.onupgradeneeded=e=>{const d=e.target.result;d.createObjectStore('children',{keyPath:'id'});
- d.createObjectStore('toys',{keyPath:'id'}).createIndex('child','childId')};
- q.onsuccess=e=>{db=e.target.result;r()};q.onerror=()=>j(q.error)});
- const tx=(s,m,f)=>new Promise((r,j)=>{const t=db.transaction(s,m),o=t.objectStore(s),q=f(o);t.oncomplete=()=>r(q&&q.result);t.onerror=()=>j(t.error)});
- return{open,all:s=>tx(s,'readonly',o=>o.getAll()),put:(s,v)=>tx(s,'readwrite',o=>o.put(v)),del:(s,k)=>tx(s,'readwrite',o=>o.delete(k)),
-  byChild:id=>tx('toys','readonly',o=>o.index('child').getAll(id))}})();
-
-/* ===== Utils ===== */
-const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
-const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
-const show=el=>el.classList.remove('hidden'),hide=el=>el.classList.add('hidden');
-let toastT;const toast=m=>{const t=$('#toast');t.textContent=m;show(t);clearTimeout(toastT);toastT=setTimeout(()=>hide(t),2500)};
-const confirmBox=(title,text)=>new Promise(r=>{$('#confirm-title').textContent=title;$('#confirm-text').textContent=text;const m=$('#modal-confirm');show(m);
- const done=v=>{hide(m);$('#confirm-yes').onclick=$('#confirm-no').onclick=null;r(v)};$('#confirm-yes').onclick=()=>done(true);$('#confirm-no').onclick=()=>done(false)});
-const loader={show(t){$('#loader-text').textContent=t;this.set(0,'');show($('#loader'))},set(p,s){$('#progress-bar').style.width=p+'%';$('#loader-sub').textContent=s||''},hide(){hide($('#loader'))}};
-const nextFrame=()=>new Promise(r=>setTimeout(r,30));
-const pickFile=(input)=>new Promise(r=>{input.value='';input.onchange=()=>r([...input.files]);input.click()});
-const blobToURL=b=>URL.createObjectURL(b);
-
-/* ===== Conversion image -> webp 800px q0.8 ===== */
-async function toWebp(file){
- let blob=file;
- if(/hei[cf]/i.test(file.type)||/\.hei[cf]$/i.test(file.name)){try{blob=await heic2any({blob:file,toType:'image/jpeg',quality:.9});if(Array.isArray(blob))blob=blob[0]}catch(e){}}
- let bmp;try{bmp=await createImageBitmap(blob,{imageOrientation:'from-image'})}catch(e){
-  bmp=await new Promise((r,j)=>{const i=new Image();i.onload=()=>r(i);i.onerror=j;i.src=blobToURL(blob)})}
- const w=bmp.width,h=bmp.height,s=Math.min(1,800/Math.max(w,h));
- const c=document.createElement('canvas');c.width=Math.round(w*s);c.height=Math.round(h*s);
- c.getContext('2d').drawImage(bmp,0,0,c.width,c.height);
- return new Promise(r=>c.toBlob(b=>r(b||file),'image/webp',.8));
-}
-async function convertMany(files,label){loader.show(label);const out=[];
- for(let i=0;i<files.length;i++){loader.set(Math.round(i/files.length*100),`${i+1} / ${files.length}`);await nextFrame();
-  try{out.push(await toWebp(files[i]))}catch(e){console.error(e)}}
- loader.set(100);await nextFrame();loader.hide();return out}
-
-/* ===== État ===== */
-let children=[],toys=[],cur=null,selMode=false,sel=new Set();
-const urls=new Map();const imgURL=(id,blob)=>{if(!urls.has(id))urls.set(id,blobToURL(blob));return urls.get(id)};
-
-/* ===== Profils ===== */
+const  $ =s=>document.querySelector(s),app= $ ('#app');
+const AV=['🧒','👧','👦','👶','🧑','🦄','🐻','🐱','🦊','🐼','🦖','🚀','⭐','🎀'];
+const EMO=['😈','😕','🙂','😊','😇'];
+let D,cur=null,sel=null,urls=[];
 const esc=s=>(s||'').replace(/[&<>"]/g,c=>({'&':'&','<':'<','>':'>','"':'"'}[c]));
-let editChild=null,childPhoto=null,childAvatar='🧒';
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const src=b=>{if(!b)return'';const u=URL.createObjectURL(b);urls.push(u);return u};
+const clearU=()=>{urls.forEach(URL.revokeObjectURL);urls=[]};
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const age=d=>{if(!d)return null;const b=new Date(d),n=new Date();let a=n.getFullYear()-b.getFullYear();if(n<new Date(n.getFullYear(),b.getMonth(),b.getDate()))a--;return a};
 
-function ageStr(c){if(!c||!c.birth)return '';const [y,m]=c.birth.split('-').map(Number),n=new Date();
- const mo=(n.getFullYear()-y)*12+(n.getMonth()+1-m);if(mo<0)return '';if(mo<12)return mo+' mois';
- const a=Math.floor(mo/12);return a+' an'+(a>1?'s':'')+(mo%12>=6?' et demi':'')}
+/* ---------- IndexedDB ---------- */
+const open=()=>new Promise((r,j)=>{const q=indexedDB.open('lipeno',1);q.onupgradeneeded=()=>{const d=q.result;d.createObjectStore('p',{keyPath:'id'});d.createObjectStore('t',{keyPath:'id'}).createIndex('pid','pid')};q.onsuccess=()=>r(q.result);q.onerror=j});
+const tx=(s,m,f)=>new Promise((r,j)=>{const t=D.transaction(s,m),q=f(t.objectStore(s));t.oncomplete=()=>r(q&&q.result);t.onerror=j});
+const all=s=>tx(s,'readonly',o=>o.getAll());
+const get=(s,k)=>tx(s,'readonly',o=>o.get(k));
+const put=(s,v)=>tx(s,'readwrite',o=>o.put(v));
+const del=(s,k)=>tx(s,'readwrite',o=>o.delete(k));
+const toysOf=async pid=>(await tx('t','readonly',o=>o.index('pid').getAll(pid))).sort((a,b)=>a.c-b.c);
 
-async function renderChildren(){children=await DB.all('children');const all=await DB.all('toys');const L=$('#children-list');L.innerHTML='';
- children.length?hide($('#children-empty')):show($('#children-empty'));
- for(const c of children){const n=all.filter(t=>t.childId===c.id).length;const d=document.createElement('div');d.className='child-card';
-  d.innerHTML=`<div class="child-avatar">${c.photo?`<img src="${imgURL('c'+c.id,c.photo)}">`:c.avatar||'🧒'}</div>
-  <div class="name">${esc(c.name)}</div><div class="age">${ageStr(c)}</div><div class="count">🎁 ${n} jouet${n>1?'s':''}</div>
-  <button class="edit-btn">✏️</button>`;
-  d.onclick=()=>openList(c);d.querySelector('.edit-btn').onclick=e=>{e.stopPropagation();openChildModal(c)};L.appendChild(d)}}
+/* ---------- Progress ---------- */
+function prog(t,p){const e= $ ('#prog');if(t==null){e.hidden=true;return}e.hidden=false; $ ('#progT').textContent=t;$('#progB').style.width=Math.round((p||0)*100)+'%'}
 
-function openChildModal(c){editChild=c;childPhoto=c?.photo||null;childAvatar=c?.avatar||'🧒';
- $('#modal-child-title').textContent=c?'Modifier le profil':'Nouvel enfant';$('#child-name').value=c?.name||'';$('#child-birth').value=c?.birth||'';
- c?show($('#btn-delete-child')):hide($('#btn-delete-child'));prevAvatar();show($('#modal-child'))}
-function prevAvatar(){$('#child-avatar-preview').innerHTML=childPhoto?`<img src="${blobToURL(childPhoto)}">`:childAvatar}
+/* ---------- Images (HEIC/HEIF/JPG/PNG/…) -> WebP 0.8, 800px ---------- */
+const loadJS=u=>new Promise((r,j)=>{const s=document.createElement('script');s.src=u;s.onload=r;s.onerror=j;document.head.append(s)});
+const imgEl=b=>new Promise((r,j)=>{const i=new Image();i.onload=()=>r(i);i.onerror=j;i.src=URL.createObjectURL(b)});
+async function decode(f){
+    try{return await createImageBitmap(f)}catch(e){}
+    try{return await imgEl(f)}catch(e){}
+    if(!window.heic2any)await loadJS('https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js');
+        let b=await heic2any({blob:f,toType:'image/jpeg',quality:.92});return imgEl(Array.isArray(b)?b[0]:b)}
+        async function compress(f){
+            const b=await decode(f),w=b.naturalWidth||b.width,h=b.naturalHeight||b.height,k=Math.min(1,800/Math.max(w,h));
+            const c=document.createElement('canvas');c.width=Math.round(w*k);c.height=Math.round(h*k);
+            c.getContext('2d').drawImage(b,0,0,c.width,c.height);
+            let o=await new Promise(r=>c.toBlob(r,'image/webp',.8));
+            if(!o||o.type!=='image/webp')o=await new Promise(r=>c.toBlob(r,'image/jpeg',.8)); // vieux iOS
+            return o}
+            function pick(multi,cam){return new Promise(r=>{const i=document.createElement('input');i.type='file';i.accept='image/*,.heic,.heif';if(multi)i.multiple=true;if(cam)i.capture='environment';i.onchange=()=>r([...i.files]);i.click()})}
+            async function compressAll(files){const out=[];for(let i=0;i<files.length;i++){prog(`Conversion photo ${i+1}/${files.length}…`,i/files.length);await sleep(30);try{out.push(await compress(files[i]))}catch(e){alert('Format non supporté : '+files[i].name)}}prog('Terminé',1);await sleep(150);prog(null);return out}
 
-$$('.avatar-emojis button').forEach(b=>b.onclick=()=>{childAvatar=b.dataset.av;childPhoto=null;prevAvatar()});
-$('#btn-child-photo').onclick=async()=>{const f=await pickFile($('#file-child'));if(!f[0])return;childPhoto=(await convertMany(f,'Préparation de la photo…'))[0];prevAvatar()};
-$('#btn-save-child').onclick=async()=>{const name=$('#child-name').value.trim();if(!name)return toast('Le prénom est obligatoire');
- const c=editChild||{id:uid(),created:Date.now()};Object.assign(c,{name,birth:$('#child-birth').value||null,photo:childPhoto,avatar:childAvatar});
- urls.delete('c'+c.id);await DB.put('children',c);hide($('#modal-child'));renderChildren();if(cur&&cur.id===c.id){cur=c;headerList()}};
-$('#btn-delete-child').onclick=async()=>{if(!await confirmBox('Supprimer le profil',`Supprimer ${editChild.name} et toute sa liste ?`))return;
- for(const t of await DB.byChild(editChild.id))await DB.del('toys',t.id);await DB.del('children',editChild.id);hide($('#modal-child'));renderChildren()};
-$('#btn-add-child').onclick=()=>openChildModal(null);
-$('#btn-info').onclick=()=>show($('#modal-info'));
-$$('.modal-close').forEach(b=>b.onclick=()=>hide(b.closest('.modal')));
+            /* ---------- Modales ---------- */
+            function modal(h,bind){return new Promise(r=>{const m=document.createElement('div');m.className='ov';m.innerHTML=`<div class=md>${h}</div>`;document.body.append(m);bind&&bind(m);
+            m.addEventListener('click',e=>{const b=e.target.closest('[data-r]');if(!b)return;const f={};m.querySelectorAll('[name]').forEach(i=>f[i.name]=i.value.trim());m.remove();r({v:b.dataset.r,f})})})}
+            const confirmBox=async t=>(await modal(`<p>${t}</p><div class=row><button data-r=0>Annuler</button><button class=red data-r=1>Confirmer</button></div>`)).v==='1';
+            const photoBtns=`<div class=row><button class=gold data-a=cam>📷 Appareil</button><button class=gold data-a=gal>🖼️ Galerie</button></div>`;
 
-/* ===== Liste ===== */
-const SAG=[['😈','Pas sage du tout'],['😕','Pas très sage'],['🙂','Plutôt sage'],['😊','Très sage'],['😇','Un vrai ange !']];
-function headerList(){$('#list-child-name').textContent=cur.name;$('#list-child-age').textContent=cur.age?cur.age+' an'+(cur.age>1?'s':''):'';
- $('#list-avatar').innerHTML=cur.photo?`<img src="${imgURL('c'+cur.id,cur.photo)}">`:cur.avatar||'🧒';
- const d=$('#sent-date');if(cur.sentAt){d.textContent='✅ Lettre envoyée le '+new Date(cur.sentAt).toLocaleString('fr-FR',{dateStyle:'long',timeStyle:'short'});show(d)}else hide(d);
- $('#sagesse-range').value=cur.sagesse??50;updSag()}
-function updSag(){const v=+$('#sagesse-range').value,i=Math.min(4,Math.floor(v/20.01));$('#sagesse-emoji').textContent=SAG[i][0];$('#sagesse-label').textContent=SAG[i][1]}
-$('#sagesse-range').oninput=updSag;$('#sagesse-range').onchange=()=>{cur.sagesse=+$('#sagesse-range').value;DB.put('children',cur)};
-async function openList(c){cur=c;exitSel();headerList();await renderToys();$('#screen-profiles').classList.remove('active');$('#screen-list').classList.add('active')}
-$('#btn-back').onclick=()=>{exitSel();$('#screen-list').classList.remove('active');$('#screen-profiles').classList.add('active');renderChildren()};
-async function renderToys(){toys=(await DB.byChild(cur.id)).sort((a,b)=>a.created-b.created);const G=$('#toys-grid');G.innerHTML='';
- toys.length?hide($('#toys-empty')):show($('#toys-empty'));
- for(const t of toys){const d=document.createElement('div');d.className='toy-card'+(sel.has(t.id)?' selected':'');
-  d.innerHTML=`<div class="checkbox"></div><div class="toy-img"><img src="${imgURL(t.id,t.photo)}"></div>
-  <div class="toy-info">${t.name?`<div class="toy-name">${esc(t.name)}</div>`:''}${t.store?`<div class="toy-store">${esc(t.store)}</div>`:''}</div>`;
-  attachPress(d,t);G.appendChild(d)}}
-function attachPress(el,t){let timer,long=false;
- const start=()=>{long=false;timer=setTimeout(()=>{long=true;if(!selMode){enterSel();navigator.vibrate?.(50)}toggleSel(t.id,el)},3000)};
- const end=()=>clearTimeout(timer);
- el.addEventListener('touchstart',start,{passive:true});el.addEventListener('touchend',end);el.addEventListener('touchmove',end,{passive:true});el.addEventListener('touchcancel',end);
- el.addEventListener('mousedown',start);el.addEventListener('mouseup',end);el.addEventListener('mouseleave',end);
- el.addEventListener('contextmenu',e=>e.preventDefault());
- el.onclick=()=>{if(long){long=false;return}selMode?toggleSel(t.id,el):openToyModal(t)}}
-function toggleSel(id,el){sel.has(id)?sel.delete(id):sel.add(id);el.classList.toggle('selected',sel.has(id));$('#sel-count-top').textContent=sel.size}
-function enterSel(){selMode=true;sel.clear();$('#sel-count-top').textContent=0;$('#screen-list').classList.add('selection-mode');show($('#selbar-top'));show($('#selbar-bottom'))}
-function exitSel(){selMode=false;sel.clear();$('#screen-list').classList.remove('selection-mode');hide($('#selbar-top'));hide($('#selbar-bottom'));$$('.toy-card.selected').forEach(e=>e.classList.remove('selected'))}
-$$('.btn-cancel-sel').forEach(b=>b.onclick=exitSel);
-$$('.btn-validate-sel').forEach(b=>b.onclick=async()=>{if(!sel.size)return toast('Sélectionne au moins un jouet');const list=toys.filter(t=>sel.has(t.id));exitSel();await shareJPG(list)});
+            /* ---------- Accueil / profils ---------- */
+            async function home(){cur=null;sel=null;clearU();const ps=(await all('p')).sort((a,b)=>a.c-b.c);
+                app.innerHTML=`<header><span style="width:40px"></span><h1>🎅 LIPENO 🎄</h1><button class=ico id=inf>i</button></header>
+                <div class=grid>${ps.map(p=>`<div class=prof data-id=${p.id}><div class=av>${p.photo?`<img src="${src(p.photo)}">`:(p.avatar||'🧒')}</div><b>${esc(p.name)}</b><small>${p.birth?age(p.birth)+' an(s)':''}</small><button class=pen data-e=${p.id}>✏️</button></div>`).join('')}
+                <div class="prof add" id=addp>+</div></div>`;
+                $ ('#inf').onclick=help; $ ('#addp').onclick=()=>profForm();
+                app.querySelectorAll('.prof[data-id]').forEach(e=>e.onclick=ev=>{const id=e.dataset.id;ev.target.closest('.pen')?profForm(id):openList(id)})}
 
-/* ===== Jouet unique ===== */
-let editToy=null,toyPhoto=null;
-function openToyModal(t){editToy=t;toyPhoto=t?.photo||null;$('#modal-toy-title').textContent=t?'Modifier le jouet':'Nouveau jouet';
- $('#toy-name').value=t?.name||'';$('#toy-store').value=t?.store||'';$('#toy-preview-img').src=toyPhoto?blobToURL(toyPhoto):'';
- t?show($('#btn-delete-toy')):hide($('#btn-delete-toy'));show($('#modal-toy'))}
-$('#toy-photo-preview').onclick=async()=>{const f=await pickFile($('#file-toy-edit'));if(!f[0])return;toyPhoto=(await convertMany(f,'Préparation de la photo…'))[0];$('#toy-preview-img').src=blobToURL(toyPhoto)};
-$('#btn-save-toy').onclick=async()=>{if(!toyPhoto)return toast('Ajoute une photo');const t=editToy||{id:uid(),childId:cur.id,created:Date.now()};
- Object.assign(t,{name:$('#toy-name').value.trim(),store:$('#toy-store').value.trim(),photo:toyPhoto});urls.delete(t.id);await DB.put('toys',t);hide($('#modal-toy'));renderToys()};
-$('#btn-delete-toy').onclick=async()=>{if(!await confirmBox('Supprimer le jouet','Retirer ce jouet de la liste ?'))return;await DB.del('toys',editToy.id);hide($('#modal-toy'));renderToys()};
-$('#btn-add-toy').onclick=()=>show($('#modal-source'));
-$('#src-camera').onclick=()=>addSingle($('#file-camera'));$('#src-gallery').onclick=()=>addSingle($('#file-gallery'));
-async function addSingle(input){hide($('#modal-source'));const f=await pickFile(input);if(!f[0])return;const b=(await convertMany(f,'Préparation de la photo…'))[0];if(!b)return toast('Photo illisible');openToyModal(null);toyPhoto=b;$('#toy-preview-img').src=blobToURL(b)}
+                async function profForm(id){const p=id?await get('p',id):{id:uid(),c:Date.now(),name:'',birth:'',avatar:'🧒',photo:null,sage:2};
+                let photo=p.photo,avatar=p.avatar;
+                const r=await modal(`<h3>${id?'Modifier':'Nouveau'} profil</h3>
+                <input name=name placeholder="Prénom *" value="${esc(p.name)}">
+                <label>Date de naissance (facultatif)<input type=date name=birth value="${p.birth||''}"></label>
+                <p style="margin:0">Avatar (facultatif)</p><div class=avs>${AV.map(a=>`<span class="${a===avatar?'on':''}">${a}</span>`).join('')}</div>
+                <p style="margin:0">ou photo :</p><img class=pv id=pp ${photo?`src="${src(photo)}"`:'hidden'}>${photoBtns}
+                <div class=row><button data-r=0>Annuler</button><button class=green data-r=1>Enregistrer</button></div>
+                ${id?'<button class=red data-r=del>🗑️ Supprimer le profil</button>':''}`,m=>{
+                    m.querySelectorAll('.avs span').forEach(s=>s.onclick=()=>{m.querySelectorAll('.avs span').forEach(x=>x.classList.remove('on'));s.classList.add('on');avatar=s.textContent;photo=null;m.querySelector('#pp').hidden=true});
+                    m.querySelectorAll('[data-a]').forEach(b=>b.onclick=async()=>{const f=await pick(false,b.dataset.a==='cam');if(!f.length)return;const [c]=await compressAll(f);if(c){photo=c;const i=m.querySelector('#pp');i.src=src(c);i.hidden=false}})});
+                if(r.v==='del'){if(await confirmBox(`Supprimer le profil de ${esc(p.name)} et toute sa liste ?`)){for(const t of await toysOf(p.id))await del('t',t.id);await del('p',p.id)}}
+                else if(r.v==='1'){if(!r.f.name)return alert('Le prénom est obligatoire'),profForm(id);Object.assign(p,{name:r.f.name,birth:r.f.birth,avatar,photo});await put('p',p)}
+                cur?openList(p.id):home()}
 
-/* ===== Import multiple ===== */
-$('#btn-add-multi').onclick=async()=>{const files=await pickFile($('#file-multi'));if(!files.length)return;
- const blobs=await convertMany(files,'Préparation des photos…');if(!blobs.length)return toast('Aucune photo lisible');
- let i=0,store='';$('#multi-total').textContent=blobs.length;$('#multi-store').value='';
- const showOne=()=>{$('#multi-index').textContent=i+1;$('#multi-preview-img').src=blobToURL(blobs[i]);$('#multi-name').value='';$('#multi-store').value=store};
- const save=async()=>{store=$('#multi-store').value.trim();await DB.put('toys',{id:uid(),childId:cur.id,created:Date.now()+i,name:$('#multi-name').value.trim(),store,photo:blobs[i]})};
- $('#btn-multi-next').onclick=async()=>{await save();i++;if(i>=blobs.length){hide($('#modal-multi'));renderToys();toast(`${blobs.length} jouets ajoutés 🎁`)}else showOne()};
- $('#btn-multi-stop').onclick=async()=>{if(await confirmBox('Arrêter l\'import',`Enregistrer cette photo et ignorer les ${blobs.length-i-1} suivantes ?`)){await save();hide($('#modal-multi'));renderToys()}};
- showOne();show($('#modal-multi'))};
+                function help(){modal(`<h3>🎅 Mode d'emploi</h3>
+                    <p><b>+</b> : créer un profil enfant. <b>✏️</b> : modifier / supprimer.</p>
+                    <p>Dans la liste : <b>+</b> ajoute une photo (appareil ou galerie), <b>+++</b> ajoute une série de photos avec le même magasin pré-rempli.</p>
+                    <p><b>Appui simple</b> sur un jouet : modifier / supprimer.</p>
+                    <p><b>Appui long (3 s)</b> sur un jouet : <b>mode sélection</b>. Cochez les jouets à envoyer à la famille puis <b>Valider</b> : seuls ceux-ci seront partagés.</p>
+                    <p>✉️ « Envoyer la lettre » : animation magique pour l'enfant (la liste reste modifiable).</p>
+                    <p>📤 Partage en JPG (A4), 📄 PDF en secours. 🗑️ « Vider la liste » après Noël.</p>
+                    <p>Fonctionne hors-ligne une fois installée (menu du navigateur › « Ajouter à l'écran d'accueil »).</p>
+                    <button class=green data-r=0>Compris !</button>`)}
 
-/* ===== Vider la liste ===== */
-$('#btn-clear-list').onclick=async()=>{if(!toys.length)return toast('La liste est déjà vide');if(!await confirmBox('Vider la liste',`Supprimer les ${toys.length} jouets de ${cur.name} ?`))return;
- for(const t of toys)await DB.del('toys',t.id);cur.sentAt=null;await DB.put('children',cur);headerList();renderToys()};
+                    /* ---------- Liste ---------- */
+                    async function openList(id){cur=id;clearU();const p=await get('p',id),toys=await toysOf(id),a=age(p.birth);
+                        const sb=sel?`<div class=row><button class=red data-s=0>Annuler</button><button class=green data-s=1>✔ Valider (${sel.size})</button></div>`:'';
+                        app.innerHTML=`<header><button class=ico id=back>‹</button><h1>${esc(p.name)}${a!=null?` · ${a} an(s)`:''}</h1><button class=ico id=ep>✏️</button></header>
+                        <div class=wrap>
+                        <button class=blue id=send>✉️ Envoyer la lettre au Père Noël</button>
+                        ${p.sent?`<p class=sent>📬 Lettre envoyée le ${new Date(p.sent).toLocaleString('fr-FR',{dateStyle:'long',timeStyle:'short'})}</p>`:''}
+                        <div class=sage><div class=emo>${EMO.map((e,i)=>`<span class="${i==p.sage?'on':''}">${e}</span>`).join('')}</div>
+                        <input type=range min=0 max=4 step=1 value=${p.sage??2} id=sg><div class=lbl><span>Pas sage</span><span>Très sage</span></div></div>
+                        <div class=row><button class=gold id=sh>📤 Partager</button><button id=pdf>📄 PDF</button></div>
+                        ${sb}</div>
+                        <div class=toys>${toys.length?toys.map(t=>`<div class="card ${sel&&sel.has(t.id)?'on':''}" data-id=${t.id}>${sel?'<span class=chk>✓</span>':''}<img src="${src(t.img)}"><b>${esc(t.name)}</b><small>${t.store?'🏬 '+esc(t.store):''}</small></div>`).join(''):'<p class=empty>Aucun jouet… appuie sur + 🎁</p>'}</div>
+                        <div class=wrap>${sb}<button class=red id=clr>🗑️ Vider la liste</button></div>
+                        <div class=fab><button id=a1>+</button><button id=a3>+++</button></div>`;
+                        $ ('#back').onclick=home; $ ('#ep').onclick=()=>profForm(id);
+                        $('#sg').oninput=e=>{p.sage=+e.target.value;app.querySelectorAll('.emo span').forEach((s,i)=>s.classList.toggle('on',i==p.sage))};
+                        $('#sg').onchange=()=>put('p',p);
+                        $('#send').onclick=async()=>{await letterAnim();p.sent=Date.now();await put('p',p);openList(id)};
+                        $('#sh').onclick=()=>share(p,toys);
+                        $ ('#pdf').onclick=async()=>{if(!toys.length)return alert('Liste vide');const b=await render(p,toys);dl(await pdf(b),`liste- $ {p.name}.pdf`)};
+                        $('#clr').onclick=async()=>{if(toys.length&&await confirmBox('Vider toute la liste de '+esc(p.name)+' ?')){for(const t of toys)await del('t',t.id);openList(id)}};
+                        $ ('#a1').onclick=addOne; $ ('#a3').onclick=addMany;
+                        app.querySelectorAll('[data-s]').forEach(b=>b.onclick=async()=>{if(b.dataset.s==='1'){const s=toys.filter(t=>sel.has(t.id));if(!s.length)return alert('Aucun jouet coché');await share(p,s)}sel=null;openList(id)});
+                        bindCards(app.querySelector('.toys'))}
 
-/* ===== Lettre ===== */
-$('#btn-send-letter').onclick=async()=>{if(!toys.length)return toast('Ajoute d\'abord des jouets 🎁');const a=$('#letter-anim');$('#letter-sign').textContent='🎁 '+cur.name;
- a.classList.remove('hidden');void a.offsetWidth;cur.sentAt=Date.now();await DB.put('children',cur);
- setTimeout(()=>{hide(a);headerList();toast('Date d\'envoi enregistrée 🎅')},7000)};
+                        function bindCards(el){let t,fired=false,sx,sy;const stop=()=>{clearTimeout(t);el.querySelectorAll('.press').forEach(c=>c.classList.remove('press'))};
+                        el.oncontextmenu=e=>e.preventDefault();
+                        el.onpointerdown=e=>{const c=e.target.closest('.card');if(!c)return;fired=false;sx=e.clientX;sy=e.clientY;if(!sel)c.classList.add('press');
+                            t=setTimeout(()=>{fired=true;stop();if(!sel){navigator.vibrate?.(80);sel=new Set([c.dataset.id]);openList(cur)}},3000)};
+                            el.onpointermove=e=>{if(Math.hypot(e.clientX-sx,e.clientY-sy)>12)stop()};
+                            el.onpointerup=el.onpointercancel=stop;
+                            el.onclick=e=>{const c=e.target.closest('.card');if(!c)return;if(fired){fired=false;return}const id=c.dataset.id;
+                            if(sel){sel.has(id)?sel.delete(id):sel.add(id);c.classList.toggle('on');app.querySelectorAll('[data-s="1"]').forEach(b=>b.textContent=`✔ Valider (${sel.size})`)}else editToy(id)}}
 
-/* ===== Export A4 ===== */
-const A4W=1240,A4H=1754;
-async function loadImg(blob){return new Promise(r=>{const i=new Image();i.onload=()=>r(i);i.src=blobToURL(blob)})}
-async function renderPages(list){const title=`Liste de ${cur.name}${cur.age?' – '+cur.age+' an'+(cur.age>1?'s':''):''}`;
- const n=list.length,cols=n<=4?2:n<=12?3:4,perPage=cols*(cols<=2?2:cols===3?4:5),pages=[];
- for(let p=0;p<n;p+=perPage){const c=document.createElement('canvas');c.width=A4W;c.height=A4H;const x=c.getContext('2d');
-  x.fillStyle='#fff';x.fillRect(0,0,A4W,A4H);x.fillStyle='#C41E3A';x.fillRect(0,0,A4W,120);x.fillStyle='#D4AF37';x.fillRect(0,120,A4W,8);
-  x.fillStyle='#fff';x.font='bold 54px sans-serif';x.textAlign='center';x.fillText('🎅 '+title,A4W/2,80);
-  const chunk=list.slice(p,p+perPage),rows=Math.ceil(perPage/cols),m=40,gw=(A4W-m*2-(cols-1)*20)/cols,gh=(A4H-190-m-(rows-1)*20)/rows,textH=chunk.some(t=>t.name||t.store)?90:20;
-  for(let i=0;i<chunk.length;i++){const t=chunk[i],cx=m+(i%cols)*(gw+20),cy=170+Math.floor(i/cols)*(gh+20);
-   x.fillStyle='#fbf7f2';x.strokeStyle='#D4AF37';x.lineWidth=3;x.beginPath();x.roundRect(cx,cy,gw,gh,18);x.fill();x.stroke();
-   const im=await loadImg(t.photo),bw=gw-24,bh=gh-textH-24,s=Math.min(bw/im.width,bh/im.height),w=im.width*s,h=im.height*s;
-   x.drawImage(im,cx+12+(bw-w)/2,cy+12+(bh-h)/2,w,h);
-   x.textAlign='center';x.fillStyle='#1a1a1a';x.font=`bold ${cols>=4?24:30}px sans-serif`;if(t.name)x.fillText(clip(x,t.name,gw-30),cx+gw/2,cy+gh-textH+30);
-   x.fillStyle='#0B6623';x.font=`${cols>=4?20:26}px sans-serif`;if(t.store)x.fillText(clip(x,'🏬 '+t.store,gw-30),cx+gw/2,cy+gh-textH+65)}
-  x.fillStyle='#777';x.font='22px sans-serif';x.textAlign='center';x.fillText(`LIPENO • page ${pages.length+1}/${Math.ceil(n/perPage)}`,A4W/2,A4H-14);pages.push(c)}
- return pages}
-const clip=(x,s,w)=>{while(x.measureText(s).width>w&&s.length>3)s=s.slice(0,-2)+'…';return s};
-async function shareJPG(list){if(!list.length)return toast('Rien à partager');loader.show('Création de l\'image…');await nextFrame();
- try{const pages=await renderPages(list);const files=await Promise.all(pages.map((c,i)=>new Promise(r=>c.toBlob(b=>r(new File([b],`liste-${cur.name}-${i+1}.jpg`,{type:'image/jpeg'})),'image/jpeg',.75))));
-  loader.hide();
-  if(navigator.canShare?.({files})){await navigator.share({files,title:'Liste au Père Noël de '+cur.name})}
-  else{files.forEach(f=>{const a=document.createElement('a');a.href=blobToURL(f);a.download=f.name;a.click()});toast('Image(s) téléchargée(s)')}
- }catch(e){loader.hide();if(e.name!=='AbortError'){console.error(e);toast('Partage impossible, essaie le PDF')}}}
-$('#btn-share-jpg').onclick=()=>shareJPG(toys);
-$('#btn-share-pdf').onclick=async()=>{if(!toys.length)return toast('Rien à exporter');loader.show('Création du PDF…');await nextFrame();
- try{const pages=await renderPages(toys);const pdf=new jspdf.jsPDF({unit:'mm',format:'a4'});
-  pages.forEach((c,i)=>{if(i)pdf.addPage();pdf.addImage(c.toDataURL('image/jpeg',.75),'JPEG',0,0,210,297)});
-  const blob=pdf.output('blob'),f=new File([blob],`liste-${cur.name}.pdf`,{type:'application/pdf'});loader.hide();
-  if(navigator.canShare?.({files:[f]}))await navigator.share({files:[f],title:'Liste au Père Noël'});else pdf.save(f.name)}
- catch(e){loader.hide();if(e.name!=='AbortError')toast('Erreur PDF')}};
+                            /* ---------- Jouets ---------- */
+                            async function toyModal(t,title,btns){let img=t.img;
+                                const r=await modal(`<h3>${title}</h3><img class=pv id=tp src="${src(img)}">${photoBtns}
+                                <input name=name placeholder="Nom du jouet (facultatif)" value="${esc(t.name)}">
+                                <input name=store placeholder="Magasin (facultatif)" value="${esc(t.store)}">${btns}`,m=>{
+                                    m.querySelectorAll('[data-a]').forEach(b=>b.onclick=async()=>{const f=await pick(false,b.dataset.a==='cam');if(!f.length)return;const [c]=await compressAll(f);if(c){img=c;m.querySelector('#tp').src=src(c)}})});
+                                t.img=img;return r}
+                                const newToy=(img,store='')=>({id:uid(),pid:cur,c:Date.now(),img,name:'',store});
+                                async function addOne(){const src_=await modal(`<h3>Ajouter un jouet</h3>${photoBtns.replace(/data-a/g,'data-r')}<button data-r=0>Annuler</button>`);
+                                if(src_.v==='0')return;const f=await pick(false,src_.v==='cam');if(!f.length)return;const [img]=await compressAll(f);if(!img)return;
+                                const t=newToy(img),r=await toyModal(t,'Nouveau jouet 🎁',`<div class=row><button data-r=0>Annuler</button><button class=green data-r=1>Ajouter</button></div>`);
+                                    if(r.v==='1'){t.name=r.f.name;t.store=r.f.store;await put('t',t)}openList(cur)}
+                                    async function addMany(){const f=await pick(true);if(!f.length)return;const imgs=await compressAll(f);let store='';
+                                        for(let i=0;i<imgs.length;i++){const t=newToy(imgs[i],store),last=i===imgs.length-1;
+                                            const r=await toyModal(t,`Jouet ${i+1}/${imgs.length}`,`<div class=row><button data-r=skip>Ignorer</button><button class=green data-r=1>${last?'Terminer':'Suivant ›'}</button></div><button data-r=stop>Arrêter l'import</button>`);
+                                            if(r.v==='stop')break;if(r.v==='skip')continue;t.name=r.f.name;t.store=store=r.f.store;t.c=Date.now()+i;await put('t',t)}
+                                            openList(cur)}
+                                            async function editToy(id){const t=await get('t',id),r=await toyModal(t,'Modifier le jouet',`<div class=row><button data-r=0>Annuler</button><button class=green data-r=1>Enregistrer</button></div><button class=red data-r=del>🗑️ Supprimer</button>`);
+                                                if(r.v==='1'){t.name=r.f.name;t.store=r.f.store;await put('t',t)}
+                                                if(r.v==='del'&&await confirmBox('Supprimer ce jouet ?'))await del('t',id);openList(cur)}
 
-/* ===== Init ===== */
-(async()=>{await DB.open();await renderChildren();
- if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{})})();
+                                                /* ---------- Animation lettre (7 s) ---------- */
+                                                function letterAnim(){return new Promise(r=>{const a=document.createElement('div');a.className='anim';
+                                                    a.innerHTML=Array.from({length:30},()=>`<span class=snow style="left:${Math.random()*100}%;animation-duration:${3+Math.random()*4}s;animation-delay:-${Math.random()*5}s">❄</span>`).join('')+
+                                                    `<div class=pole>🎅🏠<small>Pôle Nord</small></div><div class=paper>Cher Père Noël,<br><br>voici ma liste…<br><br>🎁🧸🚂</div><div class=env>✉️</div><p class=msg>🎄 Le Père Noël a reçu ta lettre ! 🎄</p>`;
+                                                    document.body.append(a);setTimeout(()=>{a.remove();r()},8500)})}
+
+                                                    /* ---------- Export A4 JPG (0.75) ---------- */
+                                                    function fit(x,s,w){if(x.measureText(s).width<=w)return s;while(s&&x.measureText(s+'…').width>w)s=s.slice(0,-1);return s+'…'}
+                                                    async function render(p,toys){const W=1240,H=1754,C=3,R=4,per=C*R,n=Math.ceil(toys.length/per),out=[],a=age(p.birth);
+                                                        const title=`Liste de ${p.name}${a!=null?` – ${a} an${a>1?'s':''}`:''}`;
+                                                        for(let pg=0;pg<n;pg++){const c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d');
+                                                            x.fillStyle='#fff';x.fillRect(0,0,W,H);x.fillStyle='#c8102e';x.fillRect(0,0,W,170);x.fillStyle='#d4af37';x.fillRect(0,170,W,8);
+                                                            x.fillStyle='#fff';x.textAlign='center';x.font='bold 64px Georgia';x.fillText('🎅 '+fit(x,title,W-160),W/2,110);
+                                                            x.font='28px sans-serif';x.fillStyle='#fff8';if(n>1)x.fillText(`Page ${pg+1}/${n}`,W/2,155);
+                                                            const M=50,G=20,top=200,cw=(W-2*M-(C-1)*G)/C,ch=(H-top-70-(R-1)*G)/R;
+                                                            const items=toys.slice(pg*per,pg*per+per);
+                                                            for(let i=0;i<items.length;i++){prog(`Création de l'image ${pg+1}/${n}…`,(pg*per+i)/toys.length);await sleep(10);
+                                                            const t=items[i],cx=M+(i%C)*(cw+G),cy=top+Math.floor(i/C)*(ch+G);
+                                                            x.strokeStyle='#d4af37';x.lineWidth=4;x.strokeRect(cx,cy,cw,ch);
+                                                            let im;try{im=await createImageBitmap(t.img)}catch(e){im=await imgEl(t.img)}
+                                                            const iw=im.width,ih=im.height,bw=cw-20,bh=ch-90,k=Math.min(bw/iw,bh/ih),dw=iw*k,dh=ih*k;
+                                                            x.drawImage(im,cx+10+(bw-dw)/2,cy+10+(bh-dh)/2,dw,dh); // image jamais coupée
+                                                            x.fillStyle='#111';x.font='bold 30px sans-serif';x.fillText(fit(x,t.name||'',cw-20),cx+cw/2,cy+ch-45);
+                                                            x.fillStyle='#0b6623';x.font='24px sans-serif';if(t.store)x.fillText(fit(x,'🏬 '+t.store,cw-20),cx+cw/2,cy+ch-14)}
+                                                            x.fillStyle='#0b6623';x.fillRect(0,H-40,W,40);x.fillStyle='#d4af37';x.font='22px sans-serif';x.fillText('LIPENO – Liste du Père Noël 🎄',W/2,H-12);
+                                                            out.push(await new Promise(r=>c.toBlob(r,'image/jpeg',.75)))}
+                                                            prog(null);return out}
+
+                                                            /* ---------- PDF (sans librairie) ---------- */
+                                                            async function pdf(blobs){const enc=new TextEncoder(),parts=[],offs=[];let len=0;
+                                                                const add=d=>{const u=typeof d==='string'?enc.encode(d):d;parts.push(u);len+=u.length};
+                                                                const obj=(id,f)=>{offs[id]=len;add(`${id} 0 obj\n`);f();add('\nendobj\n')};
+                                                                const n=blobs.length;add('%PDF-1.4\n');
+                                                                obj(1,()=>add('<</Type/Catalog/Pages 2 0 R>>'));
+                                                                obj(2,()=>add(`<</Type/Pages/Count ${n}/Kids[${blobs.map((_,i)=>`${3+3*i} 0 R`).join(' ')}]>>`));
+                                                                for(let i=0;i<n;i++){const d=new Uint8Array(await blobs[i].arrayBuffer()),p=3+3*i,cs=`q 595 0 0 842 0 0 cm /Im${i} Do Q`;
+                                                                obj(p,()=>add(`<</Type/Page/Parent 2 0 R/MediaBox[0 0 595 842]/Resources<</XObject<</Im${i} ${p+1} 0 R>>>>/Contents ${p+2} 0 R>>`));
+                                                                obj(p+1,()=>{add(`<</Type/XObject/Subtype/Image/Width 1240/Height 1754/ColorSpace/DeviceRGB/BitsPerComponent 8/Filter/DCTDecode/Length ${d.length}>>\nstream\n`);add(d);add('\nendstream')});
+                                                                obj(p+2,()=>add(`<</Length ${cs.length}>>\nstream\n${cs}\nendstream`))}
+                                                                const xr=len,tot=3+3*n;add(`xref\n0 ${tot}\n0000000000 65535 f \n`);
+                                                                for(let k=1;k<tot;k++)add(String(offs[k]).padStart(10,'0')+' 00000 n \n');
+                                                                add(`trailer\n<</Size ${tot}/Root 1 0 R>>\nstartxref\n${xr}\n%%EOF`);
+                                                                return new Blob(parts,{type:'application/pdf'})}
+
+                                                                /* ---------- Partage ---------- */
+                                                                function dl(b,name){const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),5000)}
+                                                                async function share(p,toys){if(!toys.length)return alert('Liste vide');
+                                                                    const blobs=await render(p,toys),files=blobs.map((b,i)=>new File([b],`liste-${p.name}-${i+1}.jpg`,{type:'image/jpeg'}));
+                                                                    if(navigator.canShare?.({files})){try{await navigator.share({files,title:'Liste de '+p.name});return}catch(e){if(e.name==='AbortError')return}}
+                                                                    if(await confirmBox('Partage JPG impossible sur cet appareil. Télécharger en PDF ?'))dl(await pdf(blobs),`liste-${p.name}.pdf`)}
+
+                                                                    /* ---------- Démarrage ---------- */
+                                                                    (async()=>{D=await open();navigator.storage?.persist?.();home();
+                                                                        if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js')})();
