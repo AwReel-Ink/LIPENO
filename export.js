@@ -1,1 +1,0 @@
-const LipenoExport={download(toys,profile){let b=new Blob([JSON.stringify({app:'LIPENO',exportedAt:new Date().toISOString(),profile,toys},null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='lipeno-wishlist.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),500)}};
