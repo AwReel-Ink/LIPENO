@@ -1,0 +1,1319 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>LIPENO - Liste Père Noël</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <!-- Librairies pour manipulation d'images et export -->
+    <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Mountains+of+Christmas:wght@400;700&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="manifest" href="./manifest.json">
+    <meta name="theme-color" content="#D42426">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="LIPENO">
+    <meta name="theme-color" content="#D42426">
+    <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        noel: {
+                            red: '#D42426',
+                            gold: '#D4AF37',
+                            green: '#0B6623',
+                            dark: '#111111',
+                            light: '#F8F9FA'
+                        }
+                    },
+                    fontFamily: {
+                        christmas: ['"Mountains of Christmas"', 'cursive'],
+                        sans: ['Nunito', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { -webkit-tap-highlight-color: transparent; }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        /* Slider Sagesse */
+        input[type=range].sagesse-slider {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 14px;
+            background: linear-gradient(to right, #ef4444, #fbbf24, #22c55e);
+            border-radius: 7px;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.3);
+            margin: 10px 0;
+        }
+        input[type=range].sagesse-slider:focus {
+            outline: none;
+        }
+        input[type=range].sagesse-slider::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 14px;
+            cursor: pointer;
+            background: transparent;
+        }
+        input[type=range].sagesse-slider::-moz-range-track {
+            width: 100%;
+            height: 14px;
+            cursor: pointer;
+            background: transparent;
+            border: none;
+        }
+        input[type=range].sagesse-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 32px;
+            width: 32px;
+            border-radius: 50%;
+            background: #ffffff;
+            border: 4px solid #D4AF37;
+            cursor: pointer;
+            margin-top: -9px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+        }
+        input[type=range].sagesse-slider::-moz-range-thumb {
+            height: 32px;
+            width: 32px;
+            border-radius: 50%;
+            background: #ffffff;
+            border: 4px solid #D4AF37;
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+        }
+        
+        /* Animation Père Noël */
+        #santa-animation {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(11, 102, 35, 0.95);
+            z-index: 9999;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            overflow: hidden;
+        }
+        .mail-scene {
+            position: relative;
+            width: 160px;
+            height: 120px;
+        }
+        .anim-letter {
+            position: absolute;
+            bottom: 10px; left: 10px;
+            width: 140px; height: 100px;
+            background: white; border-radius: 4px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            padding: 10px; z-index: 10;
+            display: flex; flex-direction: column; gap: 6px;
+            animation: slideInLetter 2s forwards ease-in-out;
+        }
+        .anim-envelope-back {
+            position: absolute; inset: 0;
+            background: #d0d0d0; border-radius: 0 0 6px 6px; z-index: 1;
+        }
+        .anim-envelope-front {
+            position: absolute; bottom: 0; left: 0;
+            width: 0; height: 0;
+            border-left: 80px solid #e8e8e8;
+            border-right: 80px solid #e8e8e8;
+            border-bottom: 70px solid #f1f1f1;
+            border-top: 50px solid transparent;
+            z-index: 20;
+        }
+        .anim-flap {
+            position: absolute; top: 0; left: 0;
+            width: 0; height: 0;
+            border-top: 60px solid #dcdcdc;
+            border-left: 80px solid transparent;
+            border-right: 80px solid transparent;
+            border-bottom: 0;
+            transform-origin: top;
+            transform: rotateX(180deg);
+            z-index: 30;
+            animation: closeFlap 1s 2.5s forwards ease-in;
+        }
+        .anim-stamp {
+            position: absolute; top: 15px; right: 15px;
+            width: 25px; height: 35px; background: #D42426;
+            z-index: 30; opacity: 0;
+            animation: showStamp 0.5s 3.5s forwards;
+            border: 2px dashed #fff;
+        }
+        .mail-wrapper {
+            position: absolute; bottom: 0; left: 0; width: 100%; height: 100%;
+            animation: flyMail 3s 4.5s forwards ease-in;
+        }
+        
+        @keyframes slideInLetter {
+            0% { transform: translateY(-150px); opacity: 0; }
+            20% { transform: translateY(-150px); opacity: 1; }
+            100% { transform: translateY(0); opacity: 1; }
+        }
+        @keyframes closeFlap {
+            0% { transform: rotateX(180deg); z-index: 5; }
+            49% { z-index: 5; }
+            50% { z-index: 40; }
+            100% { transform: rotateX(0deg); z-index: 40; }
+        }
+        @keyframes showStamp { to { opacity: 1; } }
+        @keyframes flyMail {
+            0% { transform: scale(1) translateY(0); }
+            20% { transform: scale(1.1) translateY(20px); }
+            100% { transform: scale(0.2) translateY(-1000px) rotate(30deg); opacity: 0; }
+        }
+        
+        .santa-text {
+            opacity: 0;
+            font-size: 2rem;
+            text-align: center;
+            margin-top: 2rem;
+            font-family: 'Mountains of Christmas', cursive;
+            animation: showText 2s 4.5s forwards;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+        @keyframes showText {
+            0% { opacity: 0; transform: translateY(20px); }
+            100% { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Checkbox parent mode */
+        .parent-checkbox {
+            appearance: none;
+            width: 32px;
+            height: 32px;
+            border: 3px solid #D4AF37;
+            border-radius: 8px;
+            background: rgba(255,255,255,0.9);
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 10;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .parent-checkbox:checked::after {
+            content: '\f00c';
+            font-family: 'Font Awesome 6 Free';
+            font-weight: 900;
+            color: #0B6623;
+            font-size: 20px;
+        }
+    </style>
+</head>
+<body class="bg-noel-light text-noel-dark selection:bg-noel-red selection:text-white">
+
+    <div id="app" class="relative w-full h-full min-h-screen pb-24">
+        
+        <!-- ==================== VIEW: PROFILES ==================== -->
+        <div id="view-profiles" class="block w-full min-h-screen">
+            <header class="bg-noel-red text-white p-4 flex justify-between items-center shadow-md relative z-10">
+                <h1 class="text-3xl font-christmas font-bold tracking-wide">LIPENO</h1>
+                <button onclick="showModal('modal-help')" class="w-10 h-10 rounded-full bg-white/20 flex justify-center items-center backdrop-blur-sm">
+                    <i class="fa-solid fa-info text-xl"></i>
+                </button>
+            </header>
+            
+            <main class="p-4">
+                <h2 class="text-xl font-bold mb-6 text-center text-noel-dark">Qui prépare sa liste ?</h2>
+                <div id="profiles-grid" class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    <!-- Les profils seront injectés ici -->
+                </div>
+            </main>
+
+            <!-- Floating Action Button pour ajouter un profil -->
+            <button onclick="openProfileModal()" class="fixed bottom-6 right-6 w-16 h-16 bg-noel-gold text-white rounded-full shadow-lg flex justify-center items-center text-3xl z-20 hover:scale-105 transition-transform">
+                <i class="fa-solid fa-plus"></i>
+            </button>
+        </div>
+
+        <!-- ==================== VIEW: TOY LIST ==================== -->
+        <div id="view-toys" class="hidden w-full min-h-screen flex flex-col">
+            <header class="bg-noel-red text-white p-4 flex items-center justify-between shadow-md relative z-10">
+                <button onclick="goToProfiles()" class="w-10 h-10 flex items-center">
+                    <i class="fa-solid fa-arrow-left text-xl"></i>
+                </button>
+                <div class="flex flex-col items-center flex-1">
+                    <h1 id="current-profile-name" class="text-2xl font-christmas font-bold">Profil</h1>
+                    <span id="last-sent-date" class="text-xs opacity-90"></span>
+                </div>
+                <div class="w-10 h-10 flex justify-center items-center">
+                    <img id="current-profile-avatar" src="" class="w-10 h-10 rounded-full border-2 border-noel-gold object-cover hidden">
+                </div>
+            </header>
+
+            <main class="flex-1 flex flex-col relative">
+                <!-- Panneau Actions Supérieures -->
+                <div class="bg-white p-4 shadow-sm rounded-b-2xl mb-4">
+                    <button onclick="sendToSanta()" class="w-full bg-blue-600 text-white font-bold py-3 rounded-xl shadow flex justify-center items-center gap-2 mb-4 active:scale-95 transition-transform">
+                        <i class="fa-solid fa-paper-plane"></i> Envoyer la lettre au Père Noël
+                    </button>
+                    
+                    <div class="bg-gray-50 border border-gray-200 p-4 rounded-xl shadow-inner mb-4">
+                        <div class="flex justify-between items-center mb-3 text-sm font-bold uppercase tracking-wide">
+                            <span class="text-noel-red">Pas sage 👿</span>
+                            <span class="text-noel-green">Très sage 😇</span>
+                        </div>
+                        <input type="range" id="sagesse-slider" min="0" max="4" value="2" class="sagesse-slider" oninput="updateSagesseEmoji()">
+                        <div class="flex justify-center mt-3">
+                            <span id="sagesse-emoji" class="text-4xl filter drop-shadow-md transition-transform scale-110">😐</span>
+                        </div>
+                    </div>
+
+                    <div class="flex gap-2">
+                        <button onclick="exportList(false, 'jpg')" class="flex-1 bg-noel-gold text-white font-bold py-2 rounded-lg flex justify-center items-center gap-2 text-sm">
+                            <i class="fa-solid fa-image"></i> Partager JPG
+                        </button>
+                        <button onclick="exportList(false, 'pdf')" class="flex-1 bg-blue-500 text-white font-bold py-2 rounded-lg flex justify-center items-center gap-2 text-sm">
+                            <i class="fa-solid fa-file-pdf"></i> Export PDF
+                        </button>
+                        <button onclick="confirmClearList()" class="bg-noel-dark text-white font-bold py-2 px-3 rounded-lg flex justify-center items-center gap-2 text-sm">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Bandeau Mode Parent (Caché par défaut) -->
+                <div id="parent-mode-bar-top" class="hidden sticky top-0 bg-noel-green text-white p-3 z-20 flex justify-between items-center shadow-md">
+                    <span class="font-bold"><i class="fa-solid fa-user-shield"></i> Mode Sélection</span>
+                    <div class="flex gap-2">
+                        <button onclick="toggleParentMode(false)" class="px-3 py-1 bg-white/20 rounded">Annuler</button>
+                        <button onclick="exportList(true, 'jpg')" class="px-2 py-1 bg-noel-gold rounded font-bold text-sm">JPG</button>
+                        <button onclick="exportList(true, 'pdf')" class="px-2 py-1 bg-blue-500 rounded font-bold text-sm">PDF</button>
+                    </div>
+                </div>
+
+                <!-- Grille des Jouets -->
+                <div id="toys-grid" class="grid grid-cols-2 md:grid-cols-3 gap-3 p-3 flex-1 pb-32">
+                    <!-- Les jouets seront injectés ici -->
+                </div>
+            </main>
+
+            <!-- Actions Bas (Ajout) -->
+            <div id="bottom-actions" class="fixed bottom-0 w-full bg-white border-t border-gray-200 p-4 flex gap-4 justify-center shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-10">
+                <button onclick="document.getElementById('file-single').click()" class="flex-1 bg-noel-red text-white py-3 rounded-xl font-bold flex justify-center items-center gap-2">
+                    <i class="fa-solid fa-camera"></i> + (1)
+                </button>
+                <button onclick="document.getElementById('file-multi').click()" class="flex-1 border-2 border-noel-red text-noel-red bg-white py-3 rounded-xl font-bold flex justify-center items-center gap-2">
+                    <i class="fa-solid fa-images"></i> +++ (Multi)
+                </button>
+                <input type="file" id="file-single" class="hidden" accept="image/*" onchange="handleSingleImport(event)">
+                <input type="file" id="file-multi" class="hidden" accept="image/*" multiple onchange="handleMultiImportInit(event)">
+            </div>
+            
+            <!-- Bandeau Mode Parent Bas (Caché par défaut) -->
+            <div id="parent-mode-bar-bottom" class="hidden fixed bottom-0 w-full bg-noel-green text-white p-4 flex justify-between items-center shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.3)] z-20">
+                <button onclick="toggleParentMode(false)" class="px-4 py-2 bg-white/20 rounded font-bold w-1/4">Annuler</button>
+                <div class="flex gap-2 w-2/3 justify-end">
+                    <button onclick="exportList(true, 'jpg')" class="px-4 py-2 bg-noel-gold rounded font-bold flex-1">Export JPG</button>
+                    <button onclick="exportList(true, 'pdf')" class="px-4 py-2 bg-blue-500 rounded font-bold flex-1">Export PDF</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal : Ajouter/Modifier Profil -->
+        <div id="modal-profile" class="hidden fixed inset-0 bg-black/60 z-50 flex justify-center items-center p-4">
+            <div class="bg-white rounded-2xl w-full max-w-sm overflow-hidden">
+                <div class="bg-noel-red p-4 text-white font-bold flex justify-between items-center">
+                    <span id="modal-profile-title">Ajouter un profil</span>
+                    <button onclick="hideModal('modal-profile')"><i class="fa-solid fa-xmark text-xl"></i></button>
+                </div>
+                <div class="p-6 space-y-4">
+                    <input type="hidden" id="profile-id">
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-1">Prénom de l'enfant *</label>
+                        <input type="text" id="profile-name" class="w-full border rounded-lg p-2 focus:outline-noel-red" placeholder="Ex: Léo">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-1">Date de naissance *</label>
+                        <input type="date" id="profile-dob" class="w-full border rounded-lg p-2 focus:outline-noel-red">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-1">Photo / Avatar (facultatif)</label>
+                        <div class="flex flex-col gap-3">
+                            <div class="flex items-center gap-4">
+                                <div id="profile-avatar-preview" class="w-16 h-16 bg-gray-200 rounded-full border-2 border-gray-300 flex justify-center items-center overflow-hidden">
+                                    <i class="fa-solid fa-user text-gray-400 text-2xl"></i>
+                                </div>
+                                <button onclick="document.getElementById('profile-file').click()" class="bg-gray-100 px-4 py-2 rounded-lg text-sm font-bold border">Choisir une photo...</button>
+                                <input type="file" id="profile-file" accept="image/*" class="hidden" onchange="previewProfileImage(event)">
+                            </div>
+                            <div class="text-xs text-gray-500 font-bold uppercase tracking-wider mt-1 text-center border-b pb-2">Ou choisir un emoji</div>
+                            <div id="emoji-picker" class="flex flex-wrap justify-center gap-1">
+                                <!-- Emojis injectés ici -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="p-4 border-t flex gap-2">
+                    <button id="btn-delete-profile" onclick="confirmDeleteProfile()" class="hidden w-1/3 bg-red-100 text-red-600 py-3 rounded-xl font-bold"><i class="fa-solid fa-trash"></i></button>
+                    <button onclick="saveProfile()" class="flex-1 bg-noel-green text-white py-3 rounded-xl font-bold">Sauvegarder</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal : Éditer Jouet -->
+        <div id="modal-toy" class="hidden fixed inset-0 bg-black/60 z-50 flex justify-center items-center p-4">
+            <div class="bg-white rounded-2xl w-full max-w-sm overflow-hidden flex flex-col max-h-[90vh]">
+                <div class="bg-noel-red p-4 text-white font-bold flex justify-between items-center shrink-0">
+                    <span>Détails du jouet</span>
+                    <button onclick="hideModal('modal-toy')"><i class="fa-solid fa-xmark text-xl"></i></button>
+                </div>
+                <div class="p-6 space-y-4 overflow-y-auto">
+                    <input type="hidden" id="toy-edit-id">
+                    <div class="flex justify-center">
+                        <div class="w-40 h-40 bg-gray-100 rounded-lg border border-gray-300 flex justify-center items-center overflow-hidden relative">
+                            <img id="toy-edit-preview" src="" class="w-full h-full object-contain">
+                            <button onclick="document.getElementById('toy-edit-file').click()" class="absolute bottom-1 right-1 bg-white/80 p-2 rounded-full shadow"><i class="fa-solid fa-camera"></i></button>
+                            <input type="file" id="toy-edit-file" accept="image/*" class="hidden" onchange="handleToyEditImage(event)">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-1">Nom du jouet (facultatif)</label>
+                        <input type="text" id="toy-edit-name" class="w-full border rounded-lg p-2 focus:outline-noel-red">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-1">Magasin (facultatif)</label>
+                        <input type="text" id="toy-edit-store" class="w-full border rounded-lg p-2 focus:outline-noel-red" placeholder="Ex: JouéClub, Amazon...">
+                    </div>
+                </div>
+                <div class="p-4 border-t flex gap-2 shrink-0">
+                    <button onclick="deleteToy()" class="w-1/3 bg-red-100 text-red-600 py-3 rounded-xl font-bold"><i class="fa-solid fa-trash"></i></button>
+                    <button onclick="saveToyEdit()" class="flex-1 bg-noel-green text-white py-3 rounded-xl font-bold">Sauvegarder</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal : Import Multi-Jouets -->
+        <div id="modal-multi-toy" class="hidden fixed inset-0 bg-black/80 z-50 flex justify-center items-center p-4">
+            <div class="bg-white rounded-2xl w-full max-w-sm overflow-hidden flex flex-col">
+                <div class="bg-noel-gold p-4 text-white font-bold flex justify-between items-center">
+                    <span id="multi-toy-counter">Ajout multiple (1/X)</span>
+                </div>
+                <div class="p-4 space-y-4">
+                    <div class="flex justify-center">
+                        <img id="multi-toy-preview" src="" class="w-32 h-32 object-contain bg-gray-100 rounded-lg border">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-1">Nom du jouet (facultatif)</label>
+                        <input type="text" id="multi-toy-name" class="w-full border rounded-lg p-2 focus:outline-noel-red" placeholder="Laisser vide si inconnu">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-1">Magasin (facultatif)</label>
+                        <input type="text" id="multi-toy-store" class="w-full border rounded-lg p-2 focus:outline-noel-red" placeholder="S'appliquera aux suivants">
+                    </div>
+                </div>
+                <div class="p-4 border-t flex gap-2">
+                    <button onclick="cancelMultiImport()" class="w-1/3 bg-gray-200 text-gray-700 py-3 rounded-xl font-bold">Annuler</button>
+                    <button onclick="nextMultiImport()" class="flex-1 bg-noel-green text-white py-3 rounded-xl font-bold">Suivant <i class="fa-solid fa-arrow-right"></i></button>
+                </div>
+            </div>
+        </div>
+
+        
+        <!-- Modal : Confirmations génériques (remplace confirm()) -->
+        <div id="modal-confirm" class="hidden fixed inset-0 bg-black/70 z-[60] flex justify-center items-center p-4">
+            <div class="bg-white rounded-2xl w-full max-w-sm p-6 text-center shadow-2xl transform scale-100">
+                <div class="text-4xl text-noel-red mb-4"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                <h3 id="confirm-title" class="text-xl font-bold mb-2">Confirmation</h3>
+                <p id="confirm-message" class="text-gray-600 mb-6">Êtes-vous sûr ?</p>
+                <div class="flex gap-3">
+                    <button onclick="closeConfirm(false)" class="flex-1 bg-gray-200 text-gray-800 py-2 rounded-lg font-bold">Annuler</button>
+                    <button onclick="closeConfirm(true)" class="flex-1 bg-noel-red text-white py-2 rounded-lg font-bold">Confirmer</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Overlay de Chargement (Import / Export) -->
+        <div id="loading-overlay" class="hidden fixed inset-0 bg-black/80 z-[100] flex flex-col justify-center items-center text-white p-4">
+            <i class="fa-solid fa-spinner fa-spin text-5xl mb-4 text-noel-gold"></i>
+            <p id="loading-text" class="text-xl font-bold">Traitement en cours...</p>
+            <div class="w-full max-w-xs bg-gray-700 h-4 rounded-full mt-4 overflow-hidden">
+                <div id="loading-progress" class="bg-noel-gold h-full w-0 transition-all duration-300"></div>
+            </div>
+        </div>
+
+        <!-- Container pour l'export A4 (Hors champ) -->
+        <div id="export-container" class="absolute top-0 left-[-9999px] bg-white flex flex-col pointer-events-none z-[-1]" style="width: 794px;">
+            <!-- Pages A4 injectées ici avant capture html2canvas -->
+        </div>
+
+        <!-- Animation Letter Fullscreen -->
+        <div id="santa-animation">
+            <div class="mail-scene">
+                <div class="mail-wrapper">
+                    <div class="anim-envelope-back"></div>
+                    <div class="anim-letter">
+                        <div class="h-2 w-3/4 bg-gray-200 rounded"></div>
+                        <div class="h-2 w-1/2 bg-gray-200 rounded"></div>
+                        <div class="h-2 w-5/6 bg-gray-200 rounded"></div>
+                        <div class="h-2 w-4/6 bg-gray-200 rounded"></div>
+                        <div class="h-2 w-1/3 bg-gray-200 rounded mt-2"></div>
+                    </div>
+                    <div class="anim-envelope-front"></div>
+                    <div class="anim-flap"></div>
+                    <div class="anim-stamp"></div>
+                </div>
+            </div>
+            <div class="santa-text">Le Père Noël a reçu ta lettre ! 🎅</div>
+        </div>
+
+    </div>
+
+    <script>
+        // ==========================================
+        // 1. UTILS ET VARIABLES GLOBALES
+        // ==========================================
+        const DB_NAME = 'LipenoDB';
+        const DB_VERSION = 1;
+        let db;
+
+        let currentProfileId = null;
+        let parentModeActive = false;
+        let selectedToys = new Set();
+        let holdTimer = null;
+
+        // Variables pour Multi-Import
+        let multiImportQueue = [];
+        let multiImportIndex = 0;
+        let multiImportLastStore = "";
+        
+        let confirmCallback = null;
+
+        const EMOJIS_SAGESSE = ["👿", "😠", "😐", "🙂", "😇"];
+        const AVATAR_EMOJIS = [
+            '👦', '👧', '👶', '👱‍♀️', '🧔‍♂️', '👨', '👩', '👴', '👵', 
+            '🎅', '🤶', '🧝', '🦌', '⛄', '❄️', '🎄', '⭐', '🎁', '🔔', '🧸', '🐧', '🐻‍❄️'
+        ];
+
+        function initEmojiPicker() {
+            const container = document.getElementById('emoji-picker');
+            if(container) {
+                container.innerHTML = AVATAR_EMOJIS.map(em =>
+                    `<button type="button" onclick="selectEmoji('${em}')" class="text-2xl p-2 hover:bg-gray-200 rounded-lg transition-colors">${em}</button>`
+                ).join('');
+            }
+        }
+
+        function getEmojiSvg(emoji) {
+            const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="50" fill="%23f3f4f6"/><text x="50" y="55" font-size="60" text-anchor="middle" dominant-baseline="middle">${emoji}</text></svg>`;
+            return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+        }
+
+        function selectEmoji(emoji) {
+            tempProfileAvatar = getEmojiSvg(emoji);
+            setAvatarPreview(tempProfileAvatar);
+        }
+
+        // ==========================================
+        // 2. INITIALISATION & INDEXEDDB
+        // ==========================================
+        async function initDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(DB_NAME, DB_VERSION);
+                
+                request.onupgradeneeded = (e) => {
+                    db = e.target.result;
+                    if (!db.objectStoreNames.contains('profiles')) {
+                        const profileStore = db.createObjectStore('profiles', { keyPath: 'id', autoIncrement: true });
+                    }
+                    if (!db.objectStoreNames.contains('toys')) {
+                        const toyStore = db.createObjectStore('toys', { keyPath: 'id', autoIncrement: true });
+                        toyStore.createIndex('profileId', 'profileId', { unique: false });
+                    }
+                };
+
+                request.onsuccess = (e) => {
+                    db = e.target.result;
+                    resolve();
+                };
+                request.onerror = (e) => reject(e.target.error);
+            });
+        }
+
+        window.onload = async () => {
+            initEmojiPicker();
+            try {
+                await initDB();
+                loadProfiles();
+            } catch (err) {
+                console.error("Erreur DB:", err);
+                alert("Erreur lors du chargement de la base de données.");
+            }
+        };
+
+        // ==========================================
+        // 3. FONCTIONS UTILITAIRES DB
+        // ==========================================
+        function dbTransaction(storeName, mode) {
+            return db.transaction(storeName, mode).objectStore(storeName);
+        }
+
+        async function dbGetAll(storeName) {
+            return new Promise((resolve, reject) => {
+                const req = dbTransaction(storeName, 'readonly').getAll();
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+        }
+        
+        async function dbGet(storeName, id) {
+            return new Promise((resolve, reject) => {
+                const req = dbTransaction(storeName, 'readonly').get(Number(id));
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+        }
+
+        async function dbPut(storeName, item) {
+            return new Promise((resolve, reject) => {
+                const req = dbTransaction(storeName, 'readwrite').put(item);
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+        }
+
+        async function dbDelete(storeName, id) {
+            return new Promise((resolve, reject) => {
+                const req = dbTransaction(storeName, 'readwrite').delete(Number(id));
+                req.onsuccess = () => resolve();
+                req.onerror = () => reject(req.error);
+            });
+        }
+
+        async function dbGetToysByProfile(profileId) {
+            return new Promise((resolve, reject) => {
+                const store = dbTransaction('toys', 'readonly');
+                const index = store.index('profileId');
+                const req = index.getAll(Number(profileId));
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+        }
+
+        async function dbDeleteToysByProfile(profileId) {
+            const toys = await dbGetToysByProfile(profileId);
+            for (let t of toys) {
+                await dbDelete('toys', t.id);
+            }
+        }
+
+        // ==========================================
+        // 4. NAVIGATION ET UI GENERALE
+        // ==========================================
+        function showModal(id) { document.getElementById(id).classList.remove('hidden'); }
+        function hideModal(id) { document.getElementById(id).classList.add('hidden'); }
+        
+        function customConfirm(title, message, callback) {
+            document.getElementById('confirm-title').innerText = title;
+            document.getElementById('confirm-message').innerText = message;
+            confirmCallback = callback;
+            showModal('modal-confirm');
+        }
+
+        function closeConfirm(result) {
+            hideModal('modal-confirm');
+            if (confirmCallback) confirmCallback(result);
+            confirmCallback = null;
+        }
+
+        function showLoading(text) {
+            document.getElementById('loading-text').innerText = text;
+            document.getElementById('loading-progress').style.width = '0%';
+            showModal('loading-overlay');
+        }
+        
+        function updateLoading(percent) {
+            document.getElementById('loading-progress').style.width = percent + '%';
+        }
+
+        function hideLoading() { hideModal('loading-overlay'); }
+
+        function calculateAge(dobStr) {
+            if(!dobStr) return "?";
+            const diff = Date.now() - new Date(dobStr).getTime();
+            return Math.floor(diff / (1000 * 60 * 60 * 24 * 365.25));
+        }
+
+        // ==========================================
+        // 5. TRAITEMENT DES IMAGES
+        // ==========================================
+        // Convertit toute image (JPG, PNG, HEIC) en WebP, max 800px qualité 0.8
+        async function processImageFile(file) {
+            if(!file) return null;
+
+            // Gestion HEIC/HEIF
+            if (file.type === 'image/heic' || file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif')) {
+                try {
+                    const convertedBlob = await heic2any({ blob: file, toType: 'image/jpeg' });
+                    file = new File([convertedBlob], "converted.jpg", { type: "image/jpeg" });
+                } catch(e) {
+                    console.error("Erreur HEIC:", e);
+                }
+            }
+
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        let w = img.width, h = img.height;
+                        const MAX = 800;
+                        if(w > h && w > MAX) { h = Math.round((h * MAX)/w); w = MAX; }
+                        else if(h > w && h > MAX) { w = Math.round((w * MAX)/h); h = MAX; }
+                        else if(w === h && w > MAX) { w = MAX; h = MAX; }
+
+                        canvas.width = w; canvas.height = h;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, w, h);
+                        resolve(canvas.toDataURL('image/webp', 0.8));
+                    };
+                    img.onerror = () => reject("Image corrompue");
+                    img.src = e.target.result;
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
+
+        // ==========================================
+        // 6. GESTION DES PROFILS
+        // ==========================================
+        async function loadProfiles() {
+            const profiles = await dbGetAll('profiles');
+            const grid = document.getElementById('profiles-grid');
+            grid.innerHTML = '';
+            
+            profiles.forEach(p => {
+                const age = calculateAge(p.dob);
+                const avatar = p.avatarBase64 || getEmojiSvg('👦');
+                
+                const card = document.createElement('div');
+                card.className = "bg-white rounded-2xl shadow p-4 flex flex-col items-center relative active:scale-95 transition-transform cursor-pointer";
+                card.onclick = (e) => { if(!e.target.closest('button')) openProfile(p.id); };
+                
+                card.innerHTML = `
+                    <div class="absolute top-2 right-2">
+                        <button onclick="openProfileModal(${p.id}); event.stopPropagation();" class="text-gray-400 p-2 hover:text-noel-red"><i class="fa-solid fa-pen"></i></button>
+                    </div>
+                    <img src="${avatar}" class="w-20 h-20 rounded-full object-cover border-4 border-noel-gold mb-3 shadow-sm">
+                    <h3 class="font-bold text-lg text-center truncate w-full">${p.name}</h3>
+                    <p class="text-sm text-gray-500">${age} an(s)</p>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        let tempProfileAvatar = null;
+        async function openProfileModal(id = null) {
+            tempProfileAvatar = null;
+            document.getElementById('profile-file').value = "";
+            const title = document.getElementById('modal-profile-title');
+            const delBtn = document.getElementById('btn-delete-profile');
+            
+            if (id) {
+                const p = await dbGet('profiles', id);
+                document.getElementById('profile-id').value = p.id;
+                document.getElementById('profile-name').value = p.name;
+                document.getElementById('profile-dob').value = p.dob;
+                tempProfileAvatar = p.avatarBase64 || getEmojiSvg('👦');
+                setAvatarPreview(tempProfileAvatar);
+                title.innerText = "Modifier le profil";
+                delBtn.classList.remove('hidden');
+            } else {
+                document.getElementById('profile-id').value = '';
+                document.getElementById('profile-name').value = '';
+                document.getElementById('profile-dob').value = '';
+                tempProfileAvatar = getEmojiSvg('👦');
+                setAvatarPreview(tempProfileAvatar);
+                title.innerText = "Ajouter un profil";
+                delBtn.classList.add('hidden');
+            }
+            showModal('modal-profile');
+        }
+
+        async function previewProfileImage(e) {
+            const file = e.target.files[0];
+            if(!file) return;
+            showLoading("Traitement de l'image...");
+            try {
+                tempProfileAvatar = await processImageFile(file);
+                setAvatarPreview(tempProfileAvatar);
+            } finally {
+                hideLoading();
+            }
+        }
+
+        function setAvatarPreview(src) {
+            const preview = document.getElementById('profile-avatar-preview');
+            if (src) {
+                preview.innerHTML = `<img src="${src}" class="w-full h-full object-cover">`;
+            } else {
+                preview.innerHTML = `<i class="fa-solid fa-user text-gray-400 text-2xl"></i>`;
+            }
+        }
+
+        async function saveProfile() {
+            const id = document.getElementById('profile-id').value;
+            const name = document.getElementById('profile-name').value.trim();
+            const dob = document.getElementById('profile-dob').value;
+            
+            if (!name || !dob) { alert("Prénom et date de naissance requis."); return; }
+            
+            const profile = { name, dob, avatarBase64: tempProfileAvatar };
+            if (id) {
+                profile.id = Number(id);
+                const old = await dbGet('profiles', id);
+                profile.lastSentDate = old.lastSentDate;
+                profile.wisdomLevel = old.wisdomLevel;
+            } else {
+                profile.wisdomLevel = 2; // Default
+            }
+
+            await dbPut('profiles', profile);
+            hideModal('modal-profile');
+            loadProfiles();
+        }
+
+        function confirmDeleteProfile() {
+            const id = document.getElementById('profile-id').value;
+            if(!id) return;
+            customConfirm("Supprimer le profil", "Toute la liste sera perdue. Continuer ?", async (yes) => {
+                if (yes) {
+                    await dbDeleteToysByProfile(id);
+                    await dbDelete('profiles', id);
+                    hideModal('modal-profile');
+                    loadProfiles();
+                }
+            });
+        }
+
+        // ==========================================
+        // 7. GESTION DES JOUETS & VUE LISTE
+        // ==========================================
+        async function openProfile(id) {
+            currentProfileId = id;
+            const p = await dbGet('profiles', id);
+            
+            document.getElementById('current-profile-name').innerText = p.name;
+            const avt = document.getElementById('current-profile-avatar');
+            if (p.avatarBase64) { avt.src = p.avatarBase64; avt.classList.remove('hidden'); }
+            else { avt.classList.add('hidden'); }
+
+            document.getElementById('last-sent-date').innerText = p.lastSentDate ? `Envoyée le : ${p.lastSentDate}` : "Lettre non envoyée";
+            
+            const slider = document.getElementById('sagesse-slider');
+            slider.value = p.wisdomLevel !== undefined ? p.wisdomLevel : 2;
+            updateSagesseEmoji();
+
+            document.getElementById('view-profiles').classList.add('hidden');
+            document.getElementById('view-toys').classList.remove('hidden');
+            
+            toggleParentMode(false); // Reset
+            loadToys();
+        }
+
+        function goToProfiles() {
+            // Save wisdom level before leaving
+            saveWisdomLevel();
+            document.getElementById('view-toys').classList.add('hidden');
+            document.getElementById('view-profiles').classList.remove('hidden');
+            currentProfileId = null;
+        }
+
+        async function saveWisdomLevel() {
+            if(!currentProfileId) return;
+            const p = await dbGet('profiles', currentProfileId);
+            p.wisdomLevel = document.getElementById('sagesse-slider').value;
+            await dbPut('profiles', p);
+        }
+
+        function updateSagesseEmoji() {
+            const val = document.getElementById('sagesse-slider').value;
+            document.getElementById('sagesse-emoji').innerText = EMOJIS_SAGESSE[val];
+        }
+
+        async function loadToys() {
+            const toys = await dbGetToysByProfile(currentProfileId);
+            const grid = document.getElementById('toys-grid');
+            grid.innerHTML = '';
+            
+            toys.forEach(t => {
+                const isSelected = selectedToys.has(t.id);
+                const card = document.createElement('div');
+                card.className = "bg-white rounded-xl shadow border overflow-hidden flex flex-col relative h-56 select-none";
+                
+                // Gestion Evènements Appui Long et Clic
+                card.addEventListener('touchstart', (e) => startHold(e, t.id), {passive: true});
+                card.addEventListener('touchend', (e) => endHold(e, t.id), {passive: false});
+                card.addEventListener('touchmove', cancelHold, {passive: true});
+                card.addEventListener('mousedown', (e) => startHold(e, t.id));
+                card.addEventListener('mouseup', (e) => endHold(e, t.id));
+                card.addEventListener('mouseleave', cancelHold);
+
+                let checkboxHtml = '';
+                if (parentModeActive) {
+                    checkboxHtml = `<input type="checkbox" class="parent-checkbox" ${isSelected ? 'checked' : ''} onclick="event.preventDefault()">`;
+                    if (isSelected) card.classList.add('ring-4', 'ring-noel-gold');
+                }
+
+                card.innerHTML = `
+                    ${checkboxHtml}
+                    <div class="h-3/4 w-full bg-gray-50 p-2 border-b">
+                        <img src="${t.photoWebP}" class="w-full h-full object-contain pointer-events-none">
+                    </div>
+                    <div class="h-1/4 p-2 flex flex-col justify-center bg-white pointer-events-none">
+                        <p class="font-bold text-xs truncate leading-tight">${t.name || '<i>Sans nom</i>'}</p>
+                        <p class="text-[10px] text-gray-500 truncate leading-tight">${t.store || ''}</p>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        function startHold(e, toyId) {
+            cancelHold();
+            holdTimer = setTimeout(() => {
+                if (!parentModeActive) {
+                    toggleParentMode(true);
+                    // Vibrate if supported
+                    if(navigator.vibrate) navigator.vibrate(50);
+                }
+            }, 3000); // 3 secondes
+        }
+
+        function endHold(e, toyId) {
+            if (holdTimer) {
+                clearTimeout(holdTimer);
+                holdTimer = null;
+                // Si relâché avant 3s -> Clic normal
+                if (parentModeActive) {
+                    // Toggle selection
+                    if (e.cancelable) e.preventDefault(); // Prevent ghost clicks
+                    if (selectedToys.has(toyId)) selectedToys.delete(toyId);
+                    else selectedToys.add(toyId);
+                    loadToys();
+                } else {
+                    // Open edit modal
+                    if(e.type === 'touchend' && e.cancelable) e.preventDefault();
+                    openToyModal(toyId);
+                }
+            }
+        }
+
+        function cancelHold() {
+            if (holdTimer) clearTimeout(holdTimer);
+            holdTimer = null;
+        }
+
+        function toggleParentMode(activate) {
+            parentModeActive = activate;
+            const topBar = document.getElementById('parent-mode-bar-top');
+            const bottomBar = document.getElementById('parent-mode-bar-bottom');
+            const actions = document.getElementById('bottom-actions');
+            
+            if (activate) {
+                selectedToys.clear(); // Reset selection when entering
+                topBar.classList.remove('hidden');
+                bottomBar.classList.remove('hidden');
+                actions.classList.add('hidden');
+            } else {
+                topBar.classList.add('hidden');
+                bottomBar.classList.add('hidden');
+                actions.classList.remove('hidden');
+                selectedToys.clear();
+            }
+            loadToys();
+        }
+
+        function confirmClearList() {
+            customConfirm("Vider la liste", "Voulez-vous supprimer TOUS les jouets de cette liste ? (Idéal après Noël)", async (yes) => {
+                if (yes) {
+                    await dbDeleteToysByProfile(currentProfileId);
+                    loadToys();
+                }
+            });
+        }
+
+        // ==========================================
+        // 8. AJOUT ET EDITION JOUET (SINGLE)
+        // ==========================================
+        async function handleSingleImport(e) {
+            const file = e.target.files[0];
+            if(!file) return;
+            e.target.value = ""; // reset
+            showLoading("Traitement...");
+            try {
+                const webp = await processImageFile(file);
+                // Create toy directly, user can edit later
+                await dbPut('toys', {
+                    profileId: currentProfileId,
+                    photoWebP: webp,
+                    name: "",
+                    store: ""
+                });
+                loadToys();
+            } catch (err) {
+                alert("Erreur: " + err);
+            } finally {
+                hideLoading();
+            }
+        }
+
+        let tempToyPhoto = null;
+        async function openToyModal(toyId) {
+            const t = await dbGet('toys', toyId);
+            document.getElementById('toy-edit-id').value = t.id;
+            document.getElementById('toy-edit-name').value = t.name;
+            document.getElementById('toy-edit-store').value = t.store;
+            tempToyPhoto = t.photoWebP;
+            document.getElementById('toy-edit-preview').src = t.photoWebP;
+            document.getElementById('toy-edit-file').value = "";
+            showModal('modal-toy');
+        }
+
+        async function handleToyEditImage(e) {
+            const file = e.target.files[0];
+            if(!file) return;
+            showLoading("Traitement...");
+            try {
+                tempToyPhoto = await processImageFile(file);
+                document.getElementById('toy-edit-preview').src = tempToyPhoto;
+            } finally {
+                hideLoading();
+            }
+        }
+
+        async function saveToyEdit() {
+            const id = document.getElementById('toy-edit-id').value;
+            const t = await dbGet('toys', id);
+            t.name = document.getElementById('toy-edit-name').value.trim();
+            t.store = document.getElementById('toy-edit-store').value.trim();
+            t.photoWebP = tempToyPhoto;
+            await dbPut('toys', t);
+            hideModal('modal-toy');
+            loadToys();
+        }
+
+        function deleteToy() {
+            const id = document.getElementById('toy-edit-id').value;
+            customConfirm("Supprimer le jouet", "Retirer ce jouet de la liste ?", async (yes) => {
+                if(yes) {
+                    await dbDelete('toys', id);
+                    hideModal('modal-toy');
+                    loadToys();
+                }
+            });
+        }
+
+        // ==========================================
+        // 9. IMPORT MULTI JOUETS
+        // ==========================================
+        async function handleMultiImportInit(e) {
+            const files = Array.from(e.target.files);
+            e.target.value = "";
+            if(files.length === 0) return;
+            
+            multiImportQueue = files;
+            multiImportIndex = 0;
+            // Ne pas reset le store si on veut le garder d'un import précédent, mais logique veut qu'on garde le dernier de la session
+            processNextMultiImport();
+        }
+
+        async function processNextMultiImport() {
+            if (multiImportIndex >= multiImportQueue.length) {
+                // Fini
+                hideModal('modal-multi-toy');
+                loadToys();
+                return;
+            }
+            
+            showLoading(`Préparation de l'image ${multiImportIndex + 1}/${multiImportQueue.length}...`);
+            const file = multiImportQueue[multiImportIndex];
+            
+            try {
+                const webp = await processImageFile(file);
+                document.getElementById('multi-toy-preview').src = webp;
+                document.getElementById('multi-toy-counter').innerText = `Ajout multiple (${multiImportIndex + 1}/${multiImportQueue.length})`;
+                document.getElementById('multi-toy-name').value = ""; // Nom toujours vide
+                document.getElementById('multi-toy-store').value = multiImportLastStore; // Pré-rempli avec le précédent
+                
+                hideLoading();
+                showModal('modal-multi-toy');
+                
+            } catch (err) {
+                hideLoading();
+                alert("Erreur lors du traitement de l'image.");
+                multiImportIndex++;
+                processNextMultiImport();
+            }
+        }
+
+        async function nextMultiImport() {
+            const name = document.getElementById('multi-toy-name').value.trim();
+            const store = document.getElementById('multi-toy-store').value.trim();
+            const photo = document.getElementById('multi-toy-preview').src;
+            
+            multiImportLastStore = store; // Sauvegarde pour la suivante
+            
+            await dbPut('toys', {
+                profileId: currentProfileId,
+                photoWebP: photo,
+                name: name,
+                store: store
+            });
+            
+            hideModal('modal-multi-toy');
+            multiImportIndex++;
+            processNextMultiImport();
+        }
+
+        function cancelMultiImport() {
+            customConfirm("Annuler l'import", "Arrêter l'import multiple en cours ?", (yes) => {
+                if(yes) {
+                    hideModal('modal-multi-toy');
+                    loadToys(); // Load what was already imported
+                }
+            });
+        }
+
+        // ==========================================
+        // 10. ANIMATION ENVOI LETTRE
+        // ==========================================
+        function sendToSanta() {
+            const anim = document.getElementById('santa-animation');
+            anim.style.display = 'flex';
+            
+            // Son (Optionnel, pas demandé, mais ajoute à la magie, on simule)
+            if(navigator.vibrate) navigator.vibrate([100, 50, 100, 50, 200]);
+            
+            setTimeout(async () => {
+                anim.style.display = 'none';
+                // Update Date
+                const p = await dbGet('profiles', currentProfileId);
+                const d = new Date();
+                p.lastSentDate = `${d.getDate().toString().padStart(2,'0')}/${(d.getMonth()+1).toString().padStart(2,'0')}/${d.getFullYear()} à ${d.getHours().toString().padStart(2,'0')}h${d.getMinutes().toString().padStart(2,'0')}`;
+                await dbPut('profiles', p);
+                
+                document.getElementById('last-sent-date').innerText = `Envoyée le : ${p.lastSentDate}`;
+            }, 7000); // 7 secondes (comme demandé)
+        }
+
+        // ==========================================
+        // 11. EXPORT ET PARTAGE (JPG A4 / PDF)
+        // ==========================================
+        async function exportList(fromParentMode, format) {
+            let toys = await dbGetToysByProfile(currentProfileId);
+            
+            if (fromParentMode) {
+                if(selectedToys.size === 0) {
+                    alert("Aucun jouet sélectionné !");
+                    return;
+                }
+                toys = toys.filter(t => selectedToys.has(t.id));
+            }
+            
+            if (toys.length === 0) {
+                alert("La liste est vide.");
+                return;
+            }
+
+            const p = await dbGet('profiles', currentProfileId);
+            const age = calculateAge(p.dob);
+            const headerText = `Liste de ${p.name} ${age} an(s)`;
+
+            showLoading(`Création de l'export ${format.toUpperCase()}...`);
+            try {
+                // A4 Dimensions at 96 DPI: 794 x 1123
+                const A4_WIDTH = 794;
+                const A4_HEIGHT = 1123;
+                const container = document.getElementById('export-container');
+                container.innerHTML = '';
+                
+                // Config grille
+                const cols = 3;
+                const rows = 4;
+                const maxPerPage = cols * rows;
+                const totalPages = Math.ceil(toys.length / maxPerPage);
+                
+                const canvasArray = [];
+
+                for (let i = 0; i < totalPages; i++) {
+                    const pageDiv = document.createElement('div');
+                    pageDiv.style.width = A4_WIDTH + 'px';
+                    pageDiv.style.height = A4_HEIGHT + 'px';
+                    pageDiv.style.backgroundColor = '#FFFFFF';
+                    pageDiv.style.padding = '40px';
+                    pageDiv.style.position = 'relative';
+                    pageDiv.style.boxSizing = 'border-box';
+                    pageDiv.style.display = 'flex';
+                    pageDiv.style.flexDirection = 'column';
+
+                    // Decor bordures
+                    const borderStr = `position:absolute; top:10px; left:10px; right:10px; bottom:10px; border: 4px dashed #D42426; pointer-events:none;`;
+                    pageDiv.innerHTML = `<div style="${borderStr}"></div>`;
+                    
+                    // Header
+                    const header = document.createElement('div');
+                    header.style.textAlign = 'center';
+                    header.style.marginBottom = '30px';
+                    header.style.color = '#D42426';
+                    header.innerHTML = `
+                        <h1 style="font-family:'Mountains of Christmas', cursive; font-size: 48px; margin:0;">${headerText}</h1>
+                        <p style="font-family:'Nunito', sans-serif; font-size:18px; color:#0B6623;">Page ${i+1}/${totalPages}</p>
+                    `;
+                    pageDiv.appendChild(header);
+                    
+                    // Grid
+                    const grid = document.createElement('div');
+                    grid.style.display = 'grid';
+                    grid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+                    grid.style.gridAutoRows = '200px';
+                    grid.style.gap = '15px';
+                    grid.style.flex = '1';
+                    
+                    const toysForPage = toys.slice(i * maxPerPage, (i + 1) * maxPerPage);
+                    toysForPage.forEach(t => {
+                        const cell = document.createElement('div');
+                        cell.style.border = '2px solid #EEE';
+                        cell.style.borderRadius = '10px';
+                        cell.style.padding = '10px';
+                        cell.style.display = 'flex';
+                        cell.style.flexDirection = 'column';
+                        cell.style.backgroundColor = '#FAFAFA';
+
+                        // Fonction utilitaire de troncature AVANT insertion dans le DOM (plus fiable que CSS ellipsis + overflow:hidden avec html2canvas)
+                        const truncate = (str, maxLen) => {
+                            if (!str) return ' ';
+                            return str.length > maxLen ? str.slice(0, maxLen - 1) + '…' : str;
+                        };
+
+                        const imgDiv = document.createElement('div');
+                        imgDiv.style.height = '125px';
+                        imgDiv.style.display = 'flex';
+                        imgDiv.style.justifyContent = 'center';
+                        imgDiv.style.alignItems = 'center';
+                        imgDiv.style.marginBottom = '8px';
+                        imgDiv.innerHTML = `<img src="${t.photoWebP}" style="max-width:100%; max-height:125px; object-fit:contain;">`;
+
+                        const textDiv = document.createElement('div');
+                        textDiv.style.textAlign = 'center';
+                        textDiv.style.fontFamily = "'Nunito', sans-serif";
+                        // Pas de hauteur fixe ni overflow:hidden : le texte est pré-tronqué en JS, donc il n'y a jamais de débordement à masquer
+                        textDiv.innerHTML = `
+                            <div style="font-weight:bold; font-size:14px; line-height:normal; padding-top:4px;">${truncate(t.name, 16)}</div>
+                            <div style="color:#666; font-size:10px; line-height:normal; padding-top:2px; padding-bottom:4px;">${truncate(t.store, 20)}</div>
+                        `;
+                        
+                        cell.appendChild(imgDiv);
+                        cell.appendChild(textDiv);
+                        grid.appendChild(cell);
+                    });
+                    
+                    pageDiv.appendChild(grid);
+                    container.appendChild(pageDiv);
+                    
+                    // Generate Canvas for this page
+                    const canvas = await html2canvas(pageDiv, { scale: 2, useCORS: true }); // Scale 2 for better quality
+                    canvasArray.push(canvas);
+                }
+
+                // Clean container
+                container.innerHTML = '';
+                
+                if (format === 'jpg') {
+                    // Si PWA/Mobile on essaie Web Share API avec JPGs
+                    let shared = false;
+                    if (navigator.share && navigator.canShare) {
+                        const filesToShare = [];
+                        for(let i = 0; i < canvasArray.length; i++) {
+                            const dataUrl = canvasArray[i].toDataURL('image/jpeg', 0.75); // Compression demandée
+                            const blob = await (await fetch(dataUrl)).blob();
+                            const file = new File([blob], `Liste_Noel_${p.name}_P${i+1}.jpg`, { type: 'image/jpeg' });
+                            filesToShare.push(file);
+                        }
+                        
+                        if(navigator.canShare({ files: filesToShare })) {
+                            try {
+                                await navigator.share({
+                                    files: filesToShare,
+                                    title: `Liste de Noël de ${p.name}`,
+                                    text: `Voici la liste au Père Noël de ${p.name} !`
+                                });
+                                shared = true;
+                            } catch (e) {
+                                console.log("Share annulé ou échoué", e);
+                                // L'utilisateur a annulé le menu de partage
+                                shared = true;
+                            }
+                        }
+                    }
+                    
+                    // FALLBACK : Téléchargement manuel JPG
+                    if (!shared) {
+                        for(let i = 0; i < canvasArray.length; i++) {
+                            const dataUrl = canvasArray[i].toDataURL('image/jpeg', 0.75);
+                            const link = document.createElement('a');
+                            link.download = `Liste_Noel_${p.name}_P${i+1}.jpg`;
+                            link.href = dataUrl;
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                        }
+                    }
+
+                } else if (format === 'pdf') {
+                    // Export PDF
+                    updateLoading(80);
+                    const pdf = new jspdf.jsPDF('p', 'mm', 'a4');
+                    for(let i = 0; i < canvasArray.length; i++) {
+                        if (i > 0) pdf.addPage();
+                        const imgData = canvasArray[i].toDataURL('image/jpeg', 0.75);
+                        pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
+                    }
+                    pdf.save(`Liste_Noel_${p.name}.pdf`);
+                }
+
+                if (fromParentMode) toggleParentMode(false);
+
+            } catch (err) {
+                console.error(err);
+                alert("Erreur lors de la génération de l'export.");
+            } finally {
+                hideLoading();
+            }
+        }
+        
+        // ==========================================
+        // 12. SERVICE WORKER (PWA)
+        // ==========================================
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                // NOTE: Pour que l'application soit une vraie PWA installable sur GitHub, 
+                // vous devez créer un fichier 'sw.js' et un 'manifest.json' séparés à côté de cet index.html.
+                // L'utilisation d'un fichier virtuel (Blob) pour le SW cause une erreur de "scope" invalide.
+                navigator.serviceWorker.register('./sw.js').then(reg => {
+                    console.log('Service Worker enregistré avec succès.', reg.scope);
+                }).catch(err => {
+                    console.log('Service Worker non trouvé (Normal si le fichier sw.js est absent).');
+                });
+            });
+        }
+    </script>
+</body>
+</html>
