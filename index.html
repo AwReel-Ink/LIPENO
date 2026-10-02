@@ -438,6 +438,27 @@
             </div>
         </div>
 
+        <!-- ==================== MODAL: AIDE ==================== -->
+        <div id="modal-help" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-2xl p-6 max-w-md w-full max-h-[80vh] overflow-y-auto">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-2xl font-christmas font-bold text-noel-red">Comment ça marche ?</h2>
+                    <button onclick="hideModal('modal-help')" class="w-8 h-8 flex items-center justify-center text-xl text-gray-500">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <div class="space-y-3 text-sm text-noel-dark">
+                    <p>✨ Bienvenue sur LIPENO ! Gardez la magie de Noël tout en transmettant facilement les listes à la famille.</p>
+
+                    <p>📸 Ajouter des jouets : Utilisez + (1) pour une photo unique ou +++ (Multi) pour importer toute une galerie en gardant le même magasin en mémoire.</p>
+
+                    <p>🛡️ Mode Sélection (Parents) : Restez appuyé 3 secondes sur n'importe quelle photo de jouet pour activer les cases à cocher et n'exporter que les jouets choisis.</p>
+
+                    <p>📤 Partage : Exportez votre liste en haute qualité JPG (idéal pour WhatsApp) ou en PDF.</p>
+                </div>
+            </div>
+        </div>
+
         <!-- Overlay de Chargement (Import / Export) -->
         <div id="loading-overlay" class="hidden fixed inset-0 bg-black/80 z-[100] flex flex-col justify-center items-center text-white p-4">
             <i class="fa-solid fa-spinner fa-spin text-5xl mb-4 text-noel-gold"></i>
