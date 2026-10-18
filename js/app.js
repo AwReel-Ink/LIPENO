@@ -4,7 +4,7 @@
    ========================================================= */
 
 // ---------- Constantes ----------
-const APP_VERSION = '1.0.0';
+const APP_VERSION = '1.1.0';
 const AVATARS = ['🎅', '🤶', '🧝', '🦌', '⛄', '🎄', '🎁', '⭐', '🔔', '🍪', '🧦', '🛷', '❄️', '🐧', '🐻‍❄️', '🧸', '🍭', '🎀', '🕯️', '🌟'];
 const WISDOM = [
   { e: '😈', t: 'Pas sage du tout', c: '#d93a3a' },
@@ -1064,11 +1064,15 @@ async function buildPages(kid, items, onPage) {
       document.fonts.load(`500 60px "${T.body}"`)
     ]);
   } catch (e) {}
-  const W = 2480, H = 3508, M = 150, GAP = 60;
-  const colW = (W - 2 * M - GAP) / 2;
-  const PAD = 36, IMG_W = colW - 2 * PAD, IMG_H = 950;
-  const nameFont = `800 64px "${T.body}", ${EMOJI_FONT}`;
-  const shopFont = `700 50px "${T.body}", ${EMOJI_FONT}`;
+  // Grille fixe : 3 colonnes × 2 rangées = 6 jouets par page
+  const W = 2480, H = 3508, M = 150, GAP = 56, COLS = 3, ROWS = 2, PER_PAGE = COLS * ROWS;
+  const FIRST_HEAD = 590, NEXT_HEAD = 300, FOOT = 220;
+  const colW = (W - 2 * M - (COLS - 1) * GAP) / COLS;
+  const cardH = (H - FOOT - FIRST_HEAD - (ROWS - 1) * GAP) / ROWS;
+  const PAD = 30, TEXT_H = 24 + 2 * 66 + 56;
+  const IMG_W = colW - 2 * PAD, IMG_H = cardH - 2 * PAD - TEXT_H;
+  const nameFont = `800 54px "${T.body}", ${EMOJI_FONT}`;
+  const shopFont = `700 44px "${T.body}", ${EMOJI_FONT}`;
   const meas = makeCanvas(10, 10).getContext('2d');
 
   // Mesure de chaque carte
@@ -1078,28 +1082,17 @@ async function buildPages(kid, items, onPage) {
     meas.font = nameFont;
     const nameLines = toy.name ? wrapText(meas, toy.name, IMG_W, 2) : [];
     meas.font = shopFont;
-    const shopLines = toy.shop ? wrapText(meas, '📍 ' + toy.shop, IMG_W, 2) : [];
-    const textH = (nameLines.length || shopLines.length ? 34 : 0) + nameLines.length * 78 + shopLines.length * 64;
-    return { toy, num, dw, dh, nameLines, shopLines, h: PAD + dh + textH + PAD };
+    const shopLines = toy.shop ? wrapText(meas, '📍 ' + toy.shop, IMG_W, 1) : [];
+    return { toy, num, dw, dh, nameLines, shopLines };
   });
-  const rows = [];
-  for (let i = 0; i < cards.length; i += 2) {
-    const row = cards.slice(i, i + 2);
-    rows.push({ cards: row, h: Math.max(...row.map((c) => c.h)) });
-  }
-  const FIRST_HEAD = 590, NEXT_HEAD = 300, FOOT = 220;
   const pages = [];
-  let page = { rows: [], first: true }, y = FIRST_HEAD;
-  for (const row of rows) {
-    if (page.rows.length && y + row.h > H - FOOT) {
-      pages.push(page);
-      page = { rows: [], first: false };
-      y = NEXT_HEAD;
-    }
-    page.rows.push({ ...row, y });
-    y += row.h + GAP;
+  for (let i = 0; i < cards.length || i === 0; i += PER_PAGE) {
+    const first = i === 0, top = first ? FIRST_HEAD : NEXT_HEAD;
+    const slots = cards.slice(i, i + PER_PAGE).map((cd, j) => ({
+      cd, x: M + (j % COLS) * (colW + GAP), y: top + Math.floor(j / COLS) * (cardH + GAP)
+    }));
+    pages.push({ first, slots });
   }
-  pages.push(page);
 
   let avatarBmp = null;
   if (kid.avatar && kid.avatar.type === 'photo' && kid.avatar.blob) { try { avatarBmp = await createImageBitmap(kid.avatar.blob); } catch (e) {} }
@@ -1163,45 +1156,42 @@ async function buildPages(kid, items, onPage) {
     }
 
     // cartes jouets
-    for (const row of pages[p].rows) {
-      for (let k = 0; k < row.cards.length; k++) {
-        const cd = row.cards[k];
-        const x = M + k * (colW + GAP), yy = row.y, h = row.h;
-        ctx.save();
-        if (T.outline) { ctx.fillStyle = '#1d1d2b'; rrect(ctx, x + 14, yy + 14, colW, h, 44); ctx.fill(); }
-        else { ctx.shadowColor = 'rgba(60,40,20,.14)'; ctx.shadowBlur = 34; ctx.shadowOffsetY = 12; }
-        ctx.fillStyle = T.card; rrect(ctx, x, yy, colW, h, 44); ctx.fill();
-        ctx.restore();
-        ctx.lineWidth = T.outline ? 7 : 4; ctx.strokeStyle = T.cardLine; rrect(ctx, x, yy, colW, h, 44); ctx.stroke();
-        // photo entière
-        const bmp = await createImageBitmap(cd.toy.blob);
-        const ix = x + (colW - cd.dw) / 2, iy = yy + PAD;
-        ctx.imageSmoothingQuality = 'high';
-        ctx.drawImage(bmp, ix, iy, cd.dw, cd.dh);
-        if (bmp.close) bmp.close();
-        // numéro
-        const nx = x + 74, ny = yy + 74;
-        ctx.beginPath(); ctx.arc(nx, ny, 66, 0, Math.PI * 2); ctx.fillStyle = '#ffffff'; ctx.fill();
-        ctx.beginPath(); ctx.arc(nx, ny, 56, 0, Math.PI * 2); ctx.fillStyle = T.head; ctx.fill();
-        if (T.outline) { ctx.lineWidth = 6; ctx.strokeStyle = '#1d1d2b'; ctx.stroke(); }
-        ctx.fillStyle = T.headInk; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.font = `900 ${cd.num > 99 ? 46 : 62}px "${T.body}"`;
-        ctx.fillText(String(cd.num), nx, ny + 4);
-        // coup de cœur en bas à droite de l'image
-        if (cd.toy.fav) {
-          const hx = ix + cd.dw - 64, hy = iy + cd.dh - 64;
-          ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.25)'; ctx.shadowBlur = 18; ctx.shadowOffsetY = 4;
-          ctx.beginPath(); ctx.arc(hx, hy, 58, 0, Math.PI * 2); ctx.fillStyle = '#ffffff'; ctx.fill(); ctx.restore();
-          ctx.font = `74px ${EMOJI_FONT}`; ctx.fillStyle = '#e0245e'; ctx.fillText('❤️', hx, hy + 4);
-        }
-        ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
-        // nom + magasin
-        let ty = iy + cd.dh + (cd.nameLines.length || cd.shopLines.length ? 34 : 0);
-        ctx.fillStyle = T.text; ctx.font = nameFont;
-        for (const l of cd.nameLines) { ty += 64; ctx.fillText(l, x + PAD, ty); ty += 14; }
-        ctx.fillStyle = T.soft; ctx.font = shopFont;
-        for (const l of cd.shopLines) { ty += 52; ctx.fillText(l, x + PAD, ty); ty += 12; }
+    for (const { cd, x, y: yy } of pages[p].slots) {
+      const h = cardH;
+      ctx.save();
+      if (T.outline) { ctx.fillStyle = '#1d1d2b'; rrect(ctx, x + 12, yy + 12, colW, h, 40); ctx.fill(); }
+      else { ctx.shadowColor = 'rgba(60,40,20,.14)'; ctx.shadowBlur = 30; ctx.shadowOffsetY = 10; }
+      ctx.fillStyle = T.card; rrect(ctx, x, yy, colW, h, 40); ctx.fill();
+      ctx.restore();
+      ctx.lineWidth = T.outline ? 7 : 4; ctx.strokeStyle = T.cardLine; rrect(ctx, x, yy, colW, h, 40); ctx.stroke();
+      // photo entière, centrée dans son cadre
+      const bmp = await createImageBitmap(cd.toy.blob);
+      const ix = x + (colW - cd.dw) / 2, iy = yy + PAD + (IMG_H - cd.dh) / 2;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(bmp, ix, iy, cd.dw, cd.dh);
+      if (bmp.close) bmp.close();
+      // numéro
+      const nx = x + 62, ny = yy + 62;
+      ctx.beginPath(); ctx.arc(nx, ny, 56, 0, Math.PI * 2); ctx.fillStyle = '#ffffff'; ctx.fill();
+      ctx.beginPath(); ctx.arc(nx, ny, 47, 0, Math.PI * 2); ctx.fillStyle = T.head; ctx.fill();
+      if (T.outline) { ctx.lineWidth = 6; ctx.strokeStyle = '#1d1d2b'; ctx.stroke(); }
+      ctx.fillStyle = T.headInk; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = `900 ${cd.num > 99 ? 40 : 52}px "${T.body}"`;
+      ctx.fillText(String(cd.num), nx, ny + 3);
+      // coup de cœur en bas à droite de l'image
+      if (cd.toy.fav) {
+        const hx = ix + cd.dw - 54, hy = iy + cd.dh - 54;
+        ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.25)'; ctx.shadowBlur = 16; ctx.shadowOffsetY = 4;
+        ctx.beginPath(); ctx.arc(hx, hy, 50, 0, Math.PI * 2); ctx.fillStyle = '#ffffff'; ctx.fill(); ctx.restore();
+        ctx.font = `64px ${EMOJI_FONT}`; ctx.fillStyle = '#e0245e'; ctx.fillText('❤️', hx, hy + 3);
       }
+      ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
+      // nom + magasin, sous le cadre photo
+      let ty = yy + PAD + IMG_H + 24;
+      ctx.fillStyle = T.text; ctx.font = nameFont;
+      for (const l of cd.nameLines) { ty += 54; ctx.fillText(l, x + PAD, ty); ty += 12; }
+      ctx.fillStyle = T.soft; ctx.font = shopFont;
+      for (const l of cd.shopLines) { ty += 46; ctx.fillText(l, x + PAD, ty); ty += 10; }
     }
 
     // pied de page
@@ -1386,7 +1376,7 @@ function openSettings() {
             <p>Si un jouet est supprimé, les numéros suivants se décalent.</p>
           </div></details>
           <details><summary>📤 Le fichier partagé</summary><div class="body">
-            <p>La liste est exportée en images JPG au format A4 (300 dpi) : prénom de l'enfant, photo entière de chaque jouet, son nom et le magasin s'ils sont indiqués, et un ❤️ sur les coups de cœur. Plusieurs pages sont créées si besoin.</p>
+            <p>La liste est exportée en images JPG au format A4 (300 dpi) : prénom de l'enfant, photo entière de chaque jouet, son nom et le magasin s'ils sont indiqués, et un ❤️ sur les coups de cœur. Chaque page contient 6 jouets, d'autres pages sont créées si besoin.</p>
             <p>Les images peuvent être envoyées par WhatsApp, Messenger, e-mail… ou imprimées.</p>
           </div></details>
           <details><summary>📸 Ajouter des jouets</summary><div class="body">
