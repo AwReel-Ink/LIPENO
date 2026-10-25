@@ -752,3 +752,6 @@ input[type="date"]::-webkit-date-and-time-value { text-align: left; }
 .xfer div { padding: 12px; border-radius: 16px; background: var(--surface-2); text-align: center; font-weight: 800; color: var(--text-soft); font-size: .88rem; }
 .xfer b { display: block; font-size: 1.4rem; color: var(--text); margin-top: 2px; font-weight: 900; }
 .sheet .actions.col { flex-direction: column; }
+.diag { margin-top: 14px; border-radius: 14px; background: var(--surface-2); overflow: hidden; }
+.diag summary { padding: 10px 14px; font-weight: 800; font-size: .85rem; color: var(--text-soft); cursor: pointer; }
+.diag pre { margin: 0; padding: 0 14px 12px; font-size: .68rem; line-height: 1.45; white-space: pre-wrap; word-break: break-word; font-family: ui-monospace, Menlo, monospace; -webkit-user-select: text; user-select: text; }

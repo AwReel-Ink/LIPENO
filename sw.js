@@ -1,6 +1,6 @@
 /* Lipeno – service worker : tout est mis en cache pour fonctionner 100 % hors ligne.
    Pensez à changer VERSION à chaque mise à jour des fichiers. */
-const VERSION = 'lipeno-v1.2.0';
+const VERSION = 'lipeno-v1.2.1';
 
 const CORE = [
   './',

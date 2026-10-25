@@ -449,8 +449,45 @@ function hint(msg) {
 // =========================================================
 //   5. SYNCHRONISATION DIRECTE (Wi-Fi)
 // =========================================================
+// --- Journal technique (affiché en cas d'échec, pour comprendre ce qui bloque) ---
+function dlog(S, msg) {
+  if (!S.logs) return;
+  S.logs.push(`${((performance.now() - S.t0) / 1000).toFixed(1)}s  ${msg}`);
+}
+function deviceInfo() {
+  const ua = navigator.userAgent;
+  const os = /iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1) ? 'iPad' : /iPhone/.test(ua) ? 'iPhone' : /Android/.test(ua) ? 'Android' : /Mac/.test(ua) ? 'Mac' : /Windows/.test(ua) ? 'Windows' : 'Linux';
+  const br = /CriOS|Chrome\/(\d+)/.exec(ua) ? 'Chrome ' + ((/Chrome\/(\d+)/.exec(ua) || [])[1] || '') : /Firefox\/(\d+)/.test(ua) ? 'Firefox' : /Version\/([\d.]+).*Safari/.test(ua) ? 'Safari ' + /Version\/([\d.]+)/.exec(ua)[1] : 'navigateur';
+  const pwa = window.matchMedia && matchMedia('(display-mode: standalone)').matches ? ' · appli installée' : '';
+  return `${os} · ${br}${pwa}`;
+}
+function candKinds(sdp) {
+  const c = parseSdp(sdp).cands;
+  if (!c.length) return 'aucune';
+  const n = { 'IPv4': 0, 'masquée (.local)': 0, 'IPv6': 0, 'autre': 0 };
+  c.forEach((x) => { n[/^\d+\.\d+\.\d+\.\d+$/.test(x.addr) ? 'IPv4' : /\.local$/i.test(x.addr) ? 'masquée (.local)' : x.addr.includes(':') ? 'IPv6' : 'autre']++; });
+  const v4 = c.filter((x) => /^\d+\.\d+\.\d+\.\d+$/.test(x.addr)).map((x) => x.addr.replace(/\.\d+$/, '.x'));
+  return Object.entries(n).filter(([, v]) => v).map(([k, v]) => `${k}×${v}`).join(', ') + (v4.length ? ` [${v4.join(' ')}]` : '');
+}
+async function statsSummary(pc) {
+  try {
+    const r = await pc.getStats();
+    const pairs = [], remote = {}, local = {};
+    r.forEach((s) => {
+      if (s.type === 'candidate-pair') pairs.push(s.state + (s.nominated ? '*' : '') + (s.requestsSent ? ` (${s.requestsSent}→/${s.responsesReceived || 0}←)` : ''));
+      if (s.type === 'remote-candidate') remote[s.candidateType] = (remote[s.candidateType] || 0) + 1;
+      if (s.type === 'local-candidate') local[s.candidateType] = (local[s.candidateType] || 0) + 1;
+    });
+    const fmt = (o) => Object.entries(o).map(([k, v]) => `${k}×${v}`).join(', ') || 'aucun';
+    return `paires testées : ${pairs.join(' ; ') || 'aucune'} · candidats locaux : ${fmt(local)} · distants : ${fmt(remote)}`;
+  } catch (e) { return 'statistiques indisponibles'; }
+}
+
 function openLive(mode) {
   const S = { mode, pc: null, dc: null, stream: null, stopScan: null, timers: [], inbox: [], waiters: [], received: new Map(), cur: null };
+  S.t0 = performance.now();
+  S.logs = [];
+  dlog(S, `${mode === 'invite' ? 'INVITE' : 'REJOINT'} · ${deviceInfo()} · Lipeno ${C.APP_VERSION}`);
   S.aborted = new Promise((_, rej) => { S.abort = rej; });
   S.aborted.catch(() => {});
   C.openModal((sheet, m) => {
@@ -479,6 +516,7 @@ function viewWorking(S, title, text, emoji = '✨', closable = true) {
 function fail(S, e) {
   if (S.finished || S.closedByUser) return;
   console.warn(e);
+  dlog(S, 'ERREUR : ' + (e && e.message ? e.message.slice(0, 120) : e));
   const msg = e instanceof SyncError ? e.message : "Une erreur est survenue pendant la synchronisation.";
   viewError(S, 'Oups…', msg);
 }
@@ -486,8 +524,9 @@ function viewError(S, title, text) {
   if (S.stopScan) { S.stopScan(); S.stopScan = null; }
   stopStream(S.stream); S.stream = null;
   S.failed = true;
+  const diag = S.logs && S.logs.length ? `<details class="diag"><summary>🔧 Détails techniques</summary><pre>${C.esc(S.logs.join('\n'))}</pre></details>` : '';
   setView(S, `<div class="sync-icon">😕</div><h2 class="title-text">${title}</h2><p class="sync-lead">${text}</p>
-    <div class="actions col"><button class="btn" data-retry>🔁 Réessayer</button><button class="btn ghost" data-file>📤 Utiliser le partage par fichier</button></div>`);
+    <div class="actions col"><button class="btn" data-retry>🔁 Réessayer</button><button class="btn ghost" data-file>📤 Utiliser le partage par fichier</button></div>${diag}`);
   $('[data-retry]', S.sheet).onclick = async () => { await S.m.close(); open(S.mode); };
   $('[data-file]', S.sheet).onclick = async () => { await S.m.close(); openFileSync(); };
 }
@@ -522,13 +561,17 @@ async function startScanning(S, video, onText) {
 }
 function newPC(S) {
   const pc = new RTCPeerConnection({ iceServers: [] });
+  pc.oniceconnectionstatechange = () => dlog(S, 'ICE : ' + pc.iceConnectionState);
+  pc.onicegatheringstatechange = () => dlog(S, 'collecte : ' + pc.iceGatheringState);
   pc.onconnectionstatechange = () => {
     const st = pc.connectionState;
+    dlog(S, 'connexion : ' + st);
+    // Avant la connexion, un échec peut n'être que passager (l'autre appareil peut encore nous joindre) :
+    // on laisse le délai d'attente décider.
+    if (!S.connected) return;
     if ((st === 'failed' || st === 'closed' || st === 'disconnected') && !S.finished && !S.closedByUser) {
       if (st === 'disconnected') { S.timers.push(setTimeout(() => { if (pc.connectionState !== 'connected' && !S.finished) S.abort(new SyncError(S.connected ? 'La connexion a été coupée. Gardez les deux appareils allumés, l\'application ouverte, et réessayez.' : notConnected)); }, 4000)); return; }
-      const err = new SyncError(S.connected ? 'La connexion a été coupée. Gardez les deux appareils allumés, l\'application ouverte, et réessayez.' : notConnected);
-      S.abort(err);
-      if (!S.connected) fail(S, err);
+      S.abort(new SyncError('La connexion a été coupée. Gardez les deux appareils allumés, l\'application ouverte, et réessayez.'));
     }
   };
   return pc;
@@ -541,13 +584,20 @@ function gather(pc) {
     pc.addEventListener('icegatheringstatechange', () => { if (pc.iceGatheringState === 'complete') { clearTimeout(t); resolve(); } });
   });
 }
+function connectTimeout(S, ms) {
+  S.timers.push(setTimeout(async () => {
+    if (S.connected || S.finished || S.closedByUser) return;
+    if (S.pc) dlog(S, await statsSummary(S.pc));
+    fail(S, new SyncError(notConnected));
+  }, ms));
+}
 const hasCandidates = (sdp) => /a=candidate:\S+ \d+ udp .* typ host/i.test(sdp);
 
 // --- L'appareil qui invite ---
 async function startInvite(S) {
   viewWorking(S, 'Préparation…', "Si on vous le demande, autorisez la caméra : elle servira à scanner la réponse de l'autre appareil.", '📲');
   // Caméra allumée pendant la préparation : les navigateurs donnent alors l'adresse locale exacte, ce qui facilite la connexion
-  try { S.stream = await getCamera(); } catch (e) { S.stream = null; }
+  try { S.stream = await getCamera(); dlog(S, 'caméra : OK'); } catch (e) { S.stream = null; dlog(S, 'caméra : refusée (' + e.name + ')'); }
   if (S.closedByUser) return;
   S.pc = newPC(S);
   S.dc = S.pc.createDataChannel('lipeno', { ordered: true });
@@ -558,6 +608,7 @@ async function startInvite(S) {
   if (!hasCandidates(S.pc.localDescription.sdp)) throw new SyncError('Aucun réseau détecté. Connectez cet appareil au Wi-Fi puis réessayez.');
   S.tag = crypto.getRandomValues(new Uint8Array(3));
   S.offerText = await encodeSignal({ kind: 1, tag: S.tag, sdp: S.pc.localDescription.sdp });
+  dlog(S, `mes adresses : ${candKinds(S.pc.localDescription.sdp)} · QR ${S.offerText.length} car.`);
   showOffer(S);
 }
 function showOffer(S) {
@@ -579,11 +630,12 @@ async function scanAnswer(S) {
     if (sig.kind === 1) { hint("C'est un code d'invitation : scannez la réponse affichée par l'autre appareil"); return; }
     if (!sameTag(sig.tag, S.tag)) { hint('Cette réponse correspond à une autre invitation'); return; }
     handled = true;
-    S.stopScan(); stopStream(S.stream); S.stream = null;
+    S.stopScan(); // caméra gardée allumée jusqu'à la connexion (Safari et Chrome autorisent alors mieux le réseau local)
+    dlog(S, `réponse reçue : adresses ${candKinds(sig.sdp)}`);
     viewWorking(S, 'Connexion…', 'Les deux appareils se connectent', '🔗');
     try { await S.pc.setRemoteDescription({ type: 'answer', sdp: sig.sdp }); }
-    catch (e) { throw new SyncError('Ce code de réponse est illisible. Recommencez depuis le début.'); }
-    S.timers.push(setTimeout(() => { if (!S.connected) fail(S, new SyncError(notConnected)); }, 25000));
+    catch (e) { dlog(S, 'réponse refusée : ' + e.name + ' ' + (e.message || '').slice(0, 160)); throw new SyncError('Ce code de réponse est illisible. Recommencez depuis le début.'); }
+    connectTimeout(S, 45000);
   });
 }
 
@@ -597,7 +649,8 @@ async function startJoin(S) {
     try { sig = await decodeSignal(text); } catch (e) { hint("Ce QR code n'est pas un code Lipeno"); return; }
     if (sig.kind !== 1) { hint("C'est un code de réponse : scannez le code d'invitation de l'autre appareil"); return; }
     handled = true;
-    S.stopScan(); // la caméra reste allumée pendant la préparation (meilleure connexion locale)
+    S.stopScan(); // la caméra reste allumée jusqu'à la connexion (meilleure connexion locale)
+    dlog(S, `invitation reçue : adresses ${candKinds(sig.sdp)}`);
     viewWorking(S, 'Préparation de la réponse…', '', '📲');
     try {
       S.pc = newPC(S);
@@ -606,18 +659,20 @@ async function startJoin(S) {
       await S.pc.setLocalDescription(await S.pc.createAnswer());
       await gather(S.pc);
     } catch (e) {
+      dlog(S, 'invitation refusée : ' + e.name + ' ' + (e.message || '').slice(0, 160));
       throw new SyncError("Ce code d'invitation est illisible. Créez une nouvelle invitation sur l'autre appareil.");
-    } finally { stopStream(S.stream); S.stream = null; }
+    }
     if (S.closedByUser) return;
     if (!hasCandidates(S.pc.localDescription.sdp)) throw new SyncError('Aucun réseau détecté. Connectez cet appareil au Wi-Fi puis réessayez.');
     const answer = await encodeSignal({ kind: 2, tag: sig.tag, sdp: S.pc.localDescription.sdp });
+    dlog(S, `mes adresses : ${candKinds(S.pc.localDescription.sdp)} · QR ${answer.length} car.`);
     if (S.connected) return;
     setView(S, `<h2 class="title-text">Presque fini !</h2>
       <p class="sync-lead">Sur l'appareil qui invite, touchez <b>« Puis scanner sa réponse »</b> et scannez ce code :</p>
       <div class="qr-box" id="qr-answer"></div>
       <p class="sync-wait"><span class="sync-spinner small"><i></i><i></i><i></i></span> En attente de connexion…</p>`);
     renderQR($('#qr-answer', S.sheet), answer);
-    S.timers.push(setTimeout(() => { if (!S.connected) fail(S, new SyncError(notConnected)); }, 120000));
+    connectTimeout(S, 120000);
   });
 }
 
@@ -699,6 +754,8 @@ function onConnected(S) {
   S.started = true;
   S.connected = true;
   S.timers.forEach(clearTimeout);
+  dlog(S, 'canal ouvert ✓');
+  stopStream(S.stream); S.stream = null;
   runProtocol(S).catch((e) => fail(S, e));
 }
 async function runProtocol(S) {
