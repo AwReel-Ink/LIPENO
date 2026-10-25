@@ -4,7 +4,7 @@
    ========================================================= */
 
 // ---------- Constantes ----------
-const APP_VERSION = '1.1.0';
+const APP_VERSION = '1.2.0';
 const AVATARS = ['🎅', '🤶', '🧝', '🦌', '⛄', '🎄', '🎁', '⭐', '🔔', '🍪', '🧦', '🛷', '❄️', '🐧', '🐻‍❄️', '🧸', '🍭', '🎀', '🕯️', '🌟'];
 const WISDOM = [
   { e: '😈', t: 'Pas sage du tout', c: '#d93a3a' },
@@ -79,9 +79,17 @@ const Settings = {
   load() {
     try { Object.assign(this.data, JSON.parse(localStorage.getItem('lipeno.settings') || '{}')); } catch (e) {}
     if (!THEMES[this.data.theme]) this.data.theme = 'classique';
+    if (!this.data.device || !this.data.device.name) { this.data.device = randomDeviceName(); this.save(); }
   },
   save() { try { localStorage.setItem('lipeno.settings', JSON.stringify(this.data)); } catch (e) {} }
 };
+// Nom de Noël aléatoire pour reconnaître les appareils lors de la synchronisation
+const DEVICE_NOUNS = [['🦌', 'Renne'], ['🧝', 'Lutin'], ['🎄', 'Sapin'], ['❄️', 'Flocon'], ['🔔', 'Grelot'], ['🛷', 'Traîneau'], ['⛄', 'Bonhomme de neige'], ['🐧', 'Pingouin'], ['🐻‍❄️', 'Ours polaire'], ['🍪', 'Biscuit'], ['🍭', "Sucre d'orge"], ['🎁', 'Paquet cadeau'], ['🧦', 'Chausson'], ['🌟', 'Astre']];
+const DEVICE_ADJS = ['Malicieux', 'Farceur', 'Rêveur', 'Joyeux', 'Gourmand', 'Étincelant', 'Câlin', 'Coquin', 'Pressé', 'Endormi', 'Rigolo', 'Givré', 'Curieux', 'Dansant', 'Pétillant', 'Chanceux'];
+function randomDeviceName() {
+  const [emoji, noun] = DEVICE_NOUNS[Math.floor(Math.random() * DEVICE_NOUNS.length)];
+  return { emoji, name: `${noun} ${DEVICE_ADJS[Math.floor(Math.random() * DEVICE_ADJS.length)]}` };
+}
 function applyTheme() {
   const t = Settings.data.theme;
   document.documentElement.dataset.theme = t;
@@ -93,13 +101,38 @@ function applyTheme() {
 let dbPromise;
 function openDB() {
   return dbPromise ||= new Promise((resolve, reject) => {
-    const req = indexedDB.open('lipeno', 1);
-    req.onupgradeneeded = () => {
-      const d = req.result;
+    const req = indexedDB.open('lipeno', 2);
+    req.onupgradeneeded = (e) => {
+      const d = req.result, tx = req.transaction;
       if (!d.objectStoreNames.contains('kids')) d.createObjectStore('kids', { keyPath: 'id' });
       if (!d.objectStoreNames.contains('toys')) d.createObjectStore('toys', { keyPath: 'id' }).createIndex('kid', 'kidId');
+      // v2 : mémoire des suppressions (pour la synchronisation)
+      if (!d.objectStoreNames.contains('tombs')) d.createObjectStore('tombs', { keyPath: 'id' });
+      if (e.oldVersion > 0 && e.oldVersion < 2) {
+        // Migration : date de modification + identifiant des photos de profil
+        const migrate = (store, fix) => {
+          tx.objectStore(store).openCursor().onsuccess = (ev) => {
+            const c = ev.target.result;
+            if (!c) return;
+            const v = c.value;
+            fix(v);
+            c.update(v);
+            c.continue();
+          };
+        };
+        migrate('kids', (k) => {
+          k.updatedAt = k.updatedAt || k.createdAt || 0;
+          if (k.avatar && k.avatar.type === 'photo' && !k.avatar.id) k.avatar.id = uid();
+        });
+        migrate('toys', (t) => { t.updatedAt = t.updatedAt || t.createdAt || 0; });
+      }
     };
-    req.onsuccess = () => resolve(req.result);
+    req.onsuccess = () => {
+      const d = req.result;
+      // Si une version plus récente de l'application est ouverte ailleurs, on lui laisse la place
+      d.onversionchange = () => { d.close(); location.reload(); };
+      resolve(d);
+    };
     req.onerror = () => reject(req.error);
   });
 }
@@ -118,20 +151,38 @@ async function run(stores, mode, fn) {
 const DB = {
   kids: () => run('kids', 'readonly', (t) => t.objectStore('kids').getAll()).then((a) => a.sort((x, y) => x.createdAt - y.createdAt)),
   kid: (id) => run('kids', 'readonly', (t) => t.objectStore('kids').get(id)),
-  putKid: (k) => run('kids', 'readwrite', (t) => t.objectStore('kids').put(k)),
-  toys: (kidId) => run('toys', 'readonly', (t) => t.objectStore('toys').index('kid').getAll(kidId)).then((a) => a.sort((x, y) => x.order - y.order)),
+  // Chaque modification met à jour updatedAt (utile pour la synchronisation)
+  putKid: (k) => { k.updatedAt = Date.now(); return run('kids', 'readwrite', (t) => t.objectStore('kids').put(k)); },
+  toys: (kidId) => run('toys', 'readonly', (t) => t.objectStore('toys').index('kid').getAll(kidId)).then(sortToys),
   countToys: (kidId) => run('toys', 'readonly', (t) => t.objectStore('toys').index('kid').count(kidId)),
   allToys: () => run('toys', 'readonly', (t) => t.objectStore('toys').getAll()),
-  putToy: (toy) => run('toys', 'readwrite', (t) => t.objectStore('toys').put(toy)),
-  delToy: (id) => run('toys', 'readwrite', (t) => t.objectStore('toys').delete(id)),
-  clearToys: (kidId) => run('toys', 'readwrite', (t) => {
-    const store = t.objectStore('toys');
-    const req = store.index('kid').openKeyCursor(IDBKeyRange.only(kidId));
-    req.onsuccess = () => { const c = req.result; if (c) { store.delete(c.primaryKey); c.continue(); } };
+  putToy: (toy) => { toy.updatedAt = Date.now(); return run('toys', 'readwrite', (t) => t.objectStore('toys').put(toy)); },
+  // Les suppressions sont mémorisées pour être transmises aux autres appareils
+  delToy: (id) => run(['toys', 'tombs'], 'readwrite', (t) => {
+    t.objectStore('toys').delete(id);
+    t.objectStore('tombs').put({ id, kind: 'toy', at: Date.now() });
   }),
-  delKid: async (id) => { await DB.clearToys(id); await run('kids', 'readwrite', (t) => t.objectStore('kids').delete(id)); },
-  wipe: () => run(['kids', 'toys'], 'readwrite', (t) => { t.objectStore('kids').clear(); t.objectStore('toys').clear(); })
+  clearToys: (kidId) => run(['toys', 'tombs'], 'readwrite', (t) => {
+    const store = t.objectStore('toys'), tombs = t.objectStore('tombs'), at = Date.now();
+    const req = store.index('kid').openKeyCursor(IDBKeyRange.only(kidId));
+    req.onsuccess = () => {
+      const c = req.result;
+      if (c) { store.delete(c.primaryKey); tombs.put({ id: c.primaryKey, kind: 'toy', at }); c.continue(); }
+    };
+  }),
+  delKid: async (id) => {
+    await DB.clearToys(id);
+    await run(['kids', 'tombs'], 'readwrite', (t) => {
+      t.objectStore('kids').delete(id);
+      t.objectStore('tombs').put({ id, kind: 'kid', at: Date.now() });
+    });
+  },
+  tombs: () => run('tombs', 'readonly', (t) => t.objectStore('tombs').getAll()),
+  // « Tout effacer » remet l'appareil à neuf (y compris la mémoire des suppressions)
+  wipe: () => run(['kids', 'toys', 'tombs'], 'readwrite', (t) => { ['kids', 'toys', 'tombs'].forEach((s) => t.objectStore(s).clear()); })
 };
+// Ordre stable et identique sur tous les appareils (date d'ajout, puis identifiant)
+function sortToys(a) { return a.sort((x, y) => (x.order - y.order) || (x.id < y.id ? -1 : x.id > y.id ? 1 : 0)); }
 
 // Liste des magasins déjà utilisés (pour la saisie assistée)
 const Shops = {
@@ -1284,7 +1335,7 @@ function openProfileEditor(kid) {
         if (!f) return;
         const prog = showProgress('Préparation de la photo…', '📷');
         prog.update(0.4, 1, 'Un instant…');
-        try { const r = await processImage(f, AVATAR_MAX); draft.avatar = { type: 'photo', blob: r.blob }; paint(); }
+        try { const r = await processImage(f, AVATAR_MAX); draft.avatar = { type: 'photo', blob: r.blob, id: uid() }; paint(); }
         catch (e) { toast("Cette photo n'a pas pu être lue 😕"); }
         await prog.close();
       };
@@ -1364,6 +1415,15 @@ function openSettings() {
           </div>`).join('') : '<p style="margin:0;color:var(--text-soft);font-weight:700">Aucun profil pour le moment.</p>'}
         <button class="btn ghost block small" data-add style="margin-top:6px">+ Ajouter un enfant</button>
 
+        <h3>🔄 Synchroniser mes appareils</h3>
+        <div class="row-setting device-row"><span>Cet appareil s'appelle<b>${Settings.data.device.emoji} ${esc(Settings.data.device.name)}</b></span><button class="icon-btn" data-reroll aria-label="Changer de nom">🎲</button></div>
+        <div class="sync-btns">
+          <button class="btn secondary" data-sync="invite">📲 Inviter</button>
+          <button class="btn secondary" data-sync="join">📷 Rejoindre</button>
+        </div>
+        <p class="sync-hint">Les deux appareils doivent être sur le même Wi-Fi. L'un invite, l'autre rejoint en scannant son QR code.</p>
+        <button class="btn ghost block small" data-sync="file">📤 Pas de Wi-Fi commun ? Partage par fichier</button>
+
         <h3>📖 Notice pour les parents</h3>
         <div class="notice">
           <details><summary>🤫 Le partage secret (appui long)</summary><div class="body">
@@ -1386,6 +1446,18 @@ function openSettings() {
           </div></details>
           <details><summary>✉️ La lettre au Père Noël</summary><div class="body">
             <p>Le bouton « Envoyer au Père Noël » lance une animation et affiche la date d'envoi. Il devient ensuite « P.S. J'ai oublié… » : la liste reste toujours modifiable. Rien n'est réellement envoyé, tout reste sur ce téléphone.</p>
+          </div></details>
+          <details><summary>🔄 Synchroniser deux appareils</summary><div class="body">
+            <p>Pour avoir la même liste sur le téléphone et la tablette, sur le <b>même Wi-Fi</b> (ou en partage de connexion) :</p>
+            <ol>
+              <li>Sur le premier appareil : Paramètres → <b>Inviter</b>. Un QR code s'affiche.</li>
+              <li>Sur le second : Paramètres → <b>Rejoindre</b>, puis scannez ce QR code. Un QR code de réponse s'affiche.</li>
+              <li>Sur le premier : touchez « Scanner la réponse » et scannez-le.</li>
+              <li>Vérifiez le résumé et validez sur les deux appareils.</li>
+            </ol>
+            <p>Les listes sont <b>fusionnées dans les deux sens</b> : chaque appareil reçoit ce qui lui manque. Les jouets supprimés ou modifiés d'un côté le sont aussi de l'autre. Les profils portant le même prénom sont réunis automatiquement.</p>
+            <p>Aucune donnée ne passe par internet : tout circule directement entre les deux appareils.</p>
+            <p><b>Si la connexion n'aboutit pas</b> (Wi-Fi d'hôtel, Wi-Fi invité…), utilisez le partage par fichier : créez le fichier, envoyez-le-vous (WhatsApp, mail…), importez-le sur l'autre appareil, puis renvoyez le fichier dans l'autre sens.</p>
           </div></details>
           <details><summary>📲 Installer l'application</summary><div class="body">
             <p><b>iPhone / iPad (Safari)</b> : bouton Partager <span aria-hidden="true">⬆️</span> puis « Sur l'écran d'accueil ».</p>
@@ -1434,15 +1506,45 @@ function openSettings() {
         toast('Toutes les listes ont été vidées'); draw(); renderRoute();
       };
       $('[data-wipe]', s).onclick = async () => {
-        if (!(await confirmDialog({ title: 'Tout effacer ?', message: 'Tous les profils et toutes les listes seront définitivement supprimés.', ok: 'Tout effacer', danger: true, emoji: '⚠️' }))) return;
+        if (!(await confirmDialog({ title: 'Tout effacer ?', message: 'Tous les profils et toutes les listes de cet appareil seront supprimés. Une future synchronisation les ramènerait depuis l\'autre appareil.', ok: 'Tout effacer', danger: true, emoji: '⚠️' }))) return;
         await DB.wipe(); Shops.map.clear();
         toast('Tout a été effacé'); draw(); renderRoute();
       };
+      $('[data-reroll]', s).onclick = () => { Settings.data.device = randomDeviceName(); Settings.save(); draw(); };
+      $$('[data-sync]', s).forEach((b) => (b.onclick = () => openSync(b.dataset.sync)));
       const inst = $('[data-install]', s);
       if (inst) inst.onclick = async () => { installPrompt.prompt(); await installPrompt.userChoice.catch(() => {}); installPrompt = null; draw(); };
     };
+    settingsRefresh = () => { if (!m.closed) draw(); };
     draw();
   });
+}
+
+// =========================================================
+//   SYNCHRONISATION (module chargé à la demande)
+// =========================================================
+let settingsRefresh = null;
+let syncModule = null;
+async function openSync(mode) {
+  try {
+    if (!syncModule) {
+      syncModule = await import('./sync.js');
+      syncModule.init({
+        APP_VERSION, DB, run, sortToys, openModal, closeX, bindCloseX, toast, esc, plural, fmtDate, sleep,
+        device: () => Settings.data.device,
+        onSynced: async () => {
+          Shops.map.clear();
+          await Shops.load();
+          if (settingsRefresh) settingsRefresh();
+          renderRoute();
+        }
+      });
+    }
+    syncModule.open(mode);
+  } catch (e) {
+    console.error(e);
+    toast('La synchronisation est indisponible sur cet appareil');
+  }
 }
 
 // =========================================================

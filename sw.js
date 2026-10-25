@@ -1,6 +1,6 @@
 /* Lipeno – service worker : tout est mis en cache pour fonctionner 100 % hors ligne.
    Pensez à changer VERSION à chaque mise à jour des fichiers. */
-const VERSION = 'lipeno-v1.1.0';
+const VERSION = 'lipeno-v1.2.0';
 
 const CORE = [
   './',
@@ -8,6 +8,7 @@ const CORE = [
   './manifest.webmanifest',
   './css/app.css',
   './js/app.js',
+  './js/sync.js',
   './fonts/nunito-latin-400-normal.woff2',
   './fonts/nunito-latin-700-normal.woff2',
   './fonts/nunito-latin-800-normal.woff2',
@@ -18,7 +19,9 @@ const CORE = [
   './fonts/cinzel-decorative-latin-700-normal.woff2',
   './lib/heic2any.min.js',
   './lib/webp/webp_enc.js',
-  './lib/webp/webp_enc.wasm'
+  './lib/webp/webp_enc.wasm',
+  './lib/qr/qrcode.mjs',
+  './lib/qr/jsQR.js'
 ];
 
 // Les icônes sont fournies séparément : si l'une manque, l'installation ne doit pas échouer.

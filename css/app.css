@@ -705,3 +705,50 @@ input[type="date"]::-webkit-date-and-time-value { text-align: left; }
 @media (prefers-reduced-motion: reduce) {
   .garland .bulb, .empty .big, .kid-card .bday { animation: none; }
 }
+
+/* ---------- Synchronisation ---------- */
+.device-row { margin-bottom: 10px; }
+.device-row span { display: flex; flex-direction: column; gap: 2px; font-size: .82rem; color: var(--text-soft); font-weight: 800; }
+.device-row b { font-size: 1.05rem; color: var(--text); font-weight: 900; }
+.device-row .icon-btn { width: 42px; height: 42px; font-size: 1.2rem; flex: none; }
+.sync-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.sync-btns .btn { padding: 0 12px; }
+.sync-hint { text-align: center; color: var(--text-soft); font-weight: 700; font-size: .84rem; margin: 10px 4px 12px; line-height: 1.45; }
+.sync-lead { text-align: center; font-weight: 700; margin: -4px 4px 14px; line-height: 1.45; }
+.sync-icon { text-align: center; font-size: 3.2rem; line-height: 1; margin-top: 6px; }
+.sync-icon.pop { animation: pop .5s ease; }
+.sync-steps { margin: 0 0 14px; padding: 0 0 0 4px; list-style: none; counter-reset: st; display: grid; gap: 8px; }
+.sync-steps li { counter-increment: st; position: relative; padding: 2px 0 0 38px; min-height: 28px; font-weight: 700; line-height: 1.4; }
+.sync-steps li::before {
+  content: counter(st); position: absolute; left: 0; top: 0; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--primary); color: var(--primary-ink); font-weight: 900; font-size: .85rem;
+}
+.qr-box {
+  width: min(78vw, 300px); aspect-ratio: 1; margin: 0 auto; padding: 8px; border-radius: 22px; background: #fff;
+  display: grid; place-items: center; box-shadow: 0 6px 20px rgba(0,0,0,.18); border: var(--card-border);
+}
+.qr-canvas { width: 100%; height: auto; image-rendering: pixelated; image-rendering: crisp-edges; display: block; }
+.scan-box { position: relative; width: min(80vw, 320px); aspect-ratio: 1; margin: 0 auto 6px; border-radius: 24px; overflow: hidden; background: #111; box-shadow: 0 6px 20px rgba(0,0,0,.25); }
+.scan-box video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.scan-frame { position: absolute; inset: 14%; pointer-events: none; }
+.scan-frame i { position: absolute; width: 34px; height: 34px; border: 5px solid #fff; filter: drop-shadow(0 0 4px rgba(0,0,0,.5)); }
+.scan-frame i:nth-child(1) { top: 0; left: 0; border-right: 0; border-bottom: 0; border-radius: 12px 0 0 0; }
+.scan-frame i:nth-child(2) { top: 0; right: 0; border-left: 0; border-bottom: 0; border-radius: 0 12px 0 0; }
+.scan-frame i:nth-child(3) { bottom: 0; left: 0; border-right: 0; border-top: 0; border-radius: 0 0 0 12px; }
+.scan-frame i:nth-child(4) { bottom: 0; right: 0; border-left: 0; border-top: 0; border-radius: 0 0 12px 0; }
+.scan-frame::after { content: ''; position: absolute; left: 6%; right: 6%; height: 3px; top: 50%; background: rgba(255, 80, 90, .85); box-shadow: 0 0 10px rgba(255, 80, 90, .9); animation: scanline 2s ease-in-out infinite; }
+@keyframes scanline { 0%, 100% { top: 8%; } 50% { top: 92%; } }
+.sync-spinner { display: flex; gap: 8px; justify-content: center; margin: 8px 0 6px; }
+.sync-spinner i { width: 12px; height: 12px; border-radius: 50%; background: var(--primary); animation: hop .9s ease-in-out infinite; }
+.sync-spinner i:nth-child(2) { animation-delay: .15s; background: var(--accent); }
+.sync-spinner i:nth-child(3) { animation-delay: .3s; background: var(--gold); }
+.sync-spinner.small { display: inline-flex; gap: 4px; margin: 0 6px 0 0; vertical-align: middle; }
+.sync-spinner.small i { width: 7px; height: 7px; }
+.sync-wait { text-align: center; font-weight: 800; color: var(--text-soft); margin: 14px 0 0; }
+.sync-summary { list-style: none; margin: 0 0 6px; padding: 0; display: grid; gap: 8px; }
+.sync-summary li { display: flex; gap: 12px; align-items: center; padding: 12px 14px; border-radius: 16px; background: var(--surface-2); font-weight: 800; line-height: 1.35; }
+.sync-summary li span:first-child { font-size: 1.4rem; flex: none; }
+.xfer { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 4px 0 14px; }
+.xfer div { padding: 12px; border-radius: 16px; background: var(--surface-2); text-align: center; font-weight: 800; color: var(--text-soft); font-size: .88rem; }
+.xfer b { display: block; font-size: 1.4rem; color: var(--text); margin-top: 2px; font-weight: 900; }
+.sheet .actions.col { flex-direction: column; }
